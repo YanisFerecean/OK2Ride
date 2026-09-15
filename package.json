@@ -1,0 +1,47 @@
+{
+  "name": "cognitive-captcha",
+  "version": "0.1.0",
+  "description": "Cognitive capability assessment web component (PVT-B reaction test + spatial alignment) for gating micromobility vehicle unlocks.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "./dist/cognitive-captcha.js",
+  "module": "./dist/cognitive-captcha.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/cognitive-captcha.js",
+      "default": "./dist/cognitive-captcha.js"
+    }
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "sideEffects": true,
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "keywords": [
+    "web-component",
+    "custom-element",
+    "psychomotor-vigilance",
+    "pvt",
+    "captcha",
+    "micromobility"
+  ],
+  "devDependencies": {
+    "happy-dom": "^20.14.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}

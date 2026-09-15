@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>cognitive-captcha demo</title>
+    <style>
+      :root { color-scheme: dark light; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, sans-serif;
+        background: #0f141a;
+        color: #e8edf2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 24px 16px 48px;
+        box-sizing: border-box;
+      }
+      body.light { background: #e9edf2; color: #0b0f14; }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 16px;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        max-width: 720px;
+      }
+      .controls label { display: flex; gap: 6px; align-items: center; }
+      .controls input, .controls select { font: inherit; padding: 4px 6px; }
+      .pool { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; font-size: 14px; }
+      .pool label { display: flex; gap: 4px; align-items: center; }
+      .log {
+        width: min(100%, 640px);
+        max-height: 260px;
+        overflow: auto;
+        margin: 0;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(127, 127, 127, 0.15);
+        font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <label>tests per run
+        <select id="stageCount">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      </label>
+      <label>max-lapses <input id="maxLapses" type="number" min="0" max="20" value="2" /></label>
+      <label>time-limit-ms <input id="timeLimit" type="number" min="5000" step="1000" value="90000" /></label>
+      <label>difficulty
+        <select id="difficulty">
+          <option value="easy">easy</option>
+          <option value="medium" selected>medium</option>
+          <option value="hard">hard</option>
+        </select>
+      </label>
+      <label>theme
+        <select id="theme">
+          <option value="dark" selected>dark</option>
+          <option value="light">light</option>
+        </select>
+      </label>
+      <button id="reset" type="button">Reset</button>
+    </div>
+
+    <div class="pool" id="pool">
+      <strong>pool:</strong>
+      <label><input type="checkbox" value="pvt" checked /> Reaction</label>
+      <label><input type="checkbox" value="spatial" checked /> Steering</label>
+      <label><input type="checkbox" value="go-no-go" checked /> Go / Stop</label>
+      <label><input type="checkbox" value="trail" checked /> Number trail</label>
+      <label><input type="checkbox" value="sequence" checked /> Pattern memory</label>
+      <label><input type="checkbox" value="stroop" checked /> Colour match</label>
+    </div>
+
+    <cognitive-captcha id="captcha" max-lapses="2" time-limit-ms="90000" difficulty="medium" theme="dark" stage-count="2" challenge-nonce="demo-nonce"></cognitive-captcha>
+
+    <pre class="log" id="log">Events will appear here.</pre>
+
+    <script type="module">
+      import '/src/index.ts';
+
+      const captcha = document.getElementById('captcha');
+      const log = document.getElementById('log');
+      const write = (label, payload) => {
+        log.textContent = `[${new Date().toLocaleTimeString()}] ${label}\n${JSON.stringify(payload, null, 2)}\n\n${log.textContent}`;
+      };
+
+      captcha.addEventListener('capability-passed', (e) => write('capability-passed', e.detail));
+      captcha.addEventListener('capability-failed', (e) => write('capability-failed', e.detail));
+      captcha.addEventListener('stage-change', (e) => write('stage-change', { from: e.detail.previous.type, to: e.detail.stage.type, plan: captcha.plan }));
+
+      document.getElementById('stageCount').addEventListener('change', (e) => captcha.setAttribute('stage-count', e.target.value));
+      document.getElementById('maxLapses').addEventListener('change', (e) => captcha.setAttribute('max-lapses', e.target.value));
+      document.getElementById('timeLimit').addEventListener('change', (e) => captcha.setAttribute('time-limit-ms', e.target.value));
+      document.getElementById('difficulty').addEventListener('change', (e) => captcha.setAttribute('difficulty', e.target.value));
+      document.getElementById('theme').addEventListener('change', (e) => {
+        captcha.setAttribute('theme', e.target.value);
+        document.body.classList.toggle('light', e.target.value === 'light');
+      });
+      document.getElementById('pool').addEventListener('change', () => {
+        const ids = [...document.querySelectorAll('#pool input:checked')].map((i) => i.value);
+        captcha.stagePool = ids;
+      });
+      document.getElementById('reset').addEventListener('click', () => captcha.reset());
+    </script>
+  </body>
+</html>

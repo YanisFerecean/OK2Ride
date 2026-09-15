@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "README.md",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/cognitive-captcha.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "name": "CognitiveCaptcha",
+          "tagName": "cognitive-captcha",
+          "customElement": true,
+          "description": "Randomly drawn cognitive capability check (reaction, steering, go/no-go, number trail, pattern memory, colour match) for gating micromobility unlocks.",
+          "attributes": [
+            {
+              "name": "stage-count",
+              "fieldName": "stageCount",
+              "type": {
+                "text": "number"
+              },
+              "default": "2",
+              "description": "Tests drawn per run, presented in random order."
+            },
+            {
+              "name": "stage-pool",
+              "fieldName": "stagePool",
+              "type": {
+                "text": "string"
+              },
+              "description": "Comma-separated test ids eligible for selection: pvt, spatial, go-no-go, trail, sequence, stroop. Empty = all."
+            },
+            {
+              "name": "max-lapses",
+              "fieldName": "maxLapses",
+              "type": {
+                "text": "number"
+              },
+              "default": "2",
+              "description": "Lapses tolerated before failing."
+            },
+            {
+              "name": "time-limit-ms",
+              "fieldName": "timeLimitMs",
+              "type": {
+                "text": "number"
+              },
+              "default": "90000",
+              "description": "Overall assessment budget in milliseconds."
+            },
+            {
+              "name": "difficulty",
+              "fieldName": "difficulty",
+              "type": {
+                "text": "'easy' | 'medium' | 'hard'"
+              },
+              "default": "'medium'"
+            },
+            {
+              "name": "theme",
+              "fieldName": "theme",
+              "type": {
+                "text": "'dark' | 'light'"
+              },
+              "default": "'dark'"
+            },
+            {
+              "name": "challenge-nonce",
+              "fieldName": "challengeNonce",
+              "type": {
+                "text": "string | null"
+              },
+              "description": "Host-supplied nonce bound into the verification token."
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "stage",
+              "readonly": true,
+              "type": {
+                "text": "TestStage"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "plan",
+              "readonly": true,
+              "type": {
+                "text": "readonly TestId[]"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "config",
+              "readonly": true,
+              "type": {
+                "text": "AssessmentConfig"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "result",
+              "readonly": true,
+              "type": {
+                "text": "AssessmentResult | null"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "active",
+              "readonly": true,
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "start",
+              "description": "Begins a run (shows the instruction screen)."
+            },
+            {
+              "kind": "method",
+              "name": "reset",
+              "description": "Aborts any run and returns to the idle screen."
+            }
+          ],
+          "events": [
+            {
+              "name": "capability-passed",
+              "type": {
+                "text": "CustomEvent<AssessmentResult>"
+              }
+            },
+            {
+              "name": "capability-failed",
+              "type": {
+                "text": "CustomEvent<AssessmentResult>"
+              }
+            },
+            {
+              "name": "stage-change",
+              "type": {
+                "text": "CustomEvent<{ stage: TestStage; previous: TestStage }>"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "modal"
+            },
+            {
+              "name": "header"
+            },
+            {
+              "name": "stage-label"
+            },
+            {
+              "name": "screen"
+            },
+            {
+              "name": "tap-area"
+            },
+            {
+              "name": "dial"
+            },
+            {
+              "name": "trail-board"
+            },
+            {
+              "name": "tiles"
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "CognitiveCaptcha",
+          "declaration": {
+            "name": "CognitiveCaptcha"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "cognitive-captcha",
+          "declaration": {
+            "name": "CognitiveCaptcha"
+          }
+        }
+      ]
+    }
+  ]
+}
