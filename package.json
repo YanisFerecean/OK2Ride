@@ -1,18 +1,23 @@
 {
-  "name": "cognitive-captcha",
+  "name": "ok2ride",
   "version": "0.1.0",
-  "description": "Cognitive capability assessment web component (PVT-B reaction test + spatial alignment) for gating micromobility vehicle unlocks.",
+  "description": "OK2Ride: cognitive capability assessment web component (randomised reaction, steering, go/no-go, trail, memory and Stroop tests) for gating micromobility vehicle unlocks.",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
-  "main": "./dist/cognitive-captcha.js",
-  "module": "./dist/cognitive-captcha.js",
+  "main": "./dist/ok2ride.js",
+  "module": "./dist/ok2ride.js",
   "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/cognitive-captcha.js",
-      "default": "./dist/cognitive-captcha.js"
+      "import": "./dist/ok2ride.js",
+      "default": "./dist/ok2ride.js"
+    },
+    "./token": {
+      "types": "./dist/types/token.d.ts",
+      "import": "./dist/token.js",
+      "default": "./dist/token.js"
     }
   },
   "files": [
@@ -22,15 +27,20 @@
   "sideEffects": true,
   "customElements": "custom-elements.json",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && tsc -p tsconfig.build.json",
-    "preview": "vite preview",
+    "dev": "vite --config vite.site.config.ts",
+    "build": "vite build && vite build --config vite.token.config.ts && tsc -p tsconfig.build.json",
+    "site:build": "vite build --config vite.site.config.ts",
+    "site:preview": "vite preview --config vite.site.config.ts",
+    "rent": "vite --config vite.rent.config.ts",
+    "rent:build": "vite build --config vite.rent.config.ts",
+    "rent:preview": "vite preview --config vite.rent.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run typecheck && npm run test && npm run build && npm run site:build && npm run rent:build"
   },
   "keywords": [
+    "ok2ride",
     "web-component",
     "custom-element",
     "psychomotor-vigilance",

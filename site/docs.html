@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Documentation · OK2Ride</title>
+    <meta name="description" content="Reference documentation for the OK2Ride web component: installation, attributes, events, result payload, the six tests, timing, verification tokens, theming, accessibility and the engine API." />
+    <link rel="stylesheet" href="./assets/site.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="./index.html"><span class="logo">OK</span> OK2Ride</a>
+        <nav aria-label="Site">
+          <a href="./index.html">Home</a>
+          <a href="./index.html#demo">Demo</a>
+          <a href="./docs.html" aria-current="page">Documentation</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="container docs">
+      <aside class="sidebar" aria-label="Documentation sections">
+        <h4>Start</h4>
+        <a href="#overview">Overview</a>
+        <a href="#getting-started">Getting started</a>
+        <a href="#frameworks">Frameworks</a>
+        <h4>Reference</h4>
+        <a href="#configuration">Configuration</a>
+        <a href="#events">Events &amp; results</a>
+        <a href="#failure-reasons">Failure reasons</a>
+        <a href="#tests">The six tests</a>
+        <a href="#run-flow">Run flow &amp; timing</a>
+        <h4>Integration</h4>
+        <a href="#verification">Server verification</a>
+        <a href="#theming">Theming</a>
+        <a href="#accessibility">Accessibility</a>
+        <a href="#engine">Engine API</a>
+        <a href="#example-app">Example app</a>
+        <a href="#extending">Adding a test</a>
+        <a href="#faq">FAQ</a>
+      </aside>
+
+      <main class="doc-body">
+        <section id="overview">
+          <h1>Documentation</h1>
+          <p class="lead">
+            OK2Ride is a W3C custom element, <code>&lt;ok2ride-check&gt;</code>, that runs a short cognitive capability check and reports whether the
+            rider is alert and in control. It is meant to sit in the unlock flow of a micromobility app, but it has no opinion about your
+            stack: it is one ES module, registers itself, renders inside a shadow root and talks to you through DOM events.
+          </p>
+          <ul>
+            <li><strong>Randomised.</strong> Every run draws a set of tests from a pool of six, so riders cannot rehearse one fixed task.</li>
+            <li><strong>Precise.</strong> Reaction times are measured with <code>performance.now()</code> from the paint that reveals a stimulus.</li>
+            <li><strong>Deterministic engine.</strong> A pure reducer drives the whole run; time and randomness are injected, so every transition is unit-tested and replayable.</li>
+            <li><strong>Verifiable.</strong> The result carries a checksummed token bound to a nonce your server issued.</li>
+            <li><strong>Self-contained.</strong> Zero runtime dependencies, about 19 KB gzipped, dark and light themes, keyboard accessible.</li>
+          </ul>
+          <div class="callout">
+            <p><strong>What it is not.</strong> A cognitive check estimates alertness and coordination; it is not a breathalyser and cannot measure blood alcohol. Treat a pass as one signal in your unlock policy, and treat the token as evidence to validate, not proof.</p>
+          </div>
+        </section>
+
+        <section id="getting-started">
+          <h2>Getting started</h2>
+          <h3>1. Load the module</h3>
+          <p>From a script tag:</p>
+          <pre><code>&lt;script type="module" src="/ok2ride.js"&gt;&lt;/script&gt;</code></pre>
+          <p>Or from npm inside a bundled app. Importing the package registers the <code>ok2ride-check</code> tag once and exports the engine types.</p>
+          <pre><code>npm install ok2ride</code></pre>
+          <pre><code>import 'ok2ride';
+import type { AssessmentResult } from 'ok2ride';</code></pre>
+          <h3>2. Place the element</h3>
+          <pre><code>&lt;ok2ride-check
+  stage-count="2"
+  difficulty="medium"
+  time-limit-ms="90000"
+  theme="dark"
+  challenge-nonce="a-nonce-your-server-issued-for-this-unlock"
+&gt;&lt;/ok2ride-check&gt;</code></pre>
+          <p>The element renders as a card up to 480 px wide that fills its container. Put it in a modal, a sheet or a page; it does not position itself.</p>
+          <h3>3. React to the outcome</h3>
+          <pre><code>const el = document.querySelector('ok2ride-check');
+
+el.addEventListener('capability-passed', async (e) =&gt; {
+  const { verificationToken } = e.detail;
+  const res = await fetch('/api/unlock', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ vehicleId, token: verificationToken }),
+  });
+  if (res.ok) showUnlocked();
+});
+
+el.addEventListener('capability-failed', (e) =&gt; {
+  // e.detail.failureReason tells you why; e.detail.failedTest which test ended the run
+  showCoolDown(e.detail);
+});</code></pre>
+          <p>The rider starts the run from the element's own <strong>Start check</strong> button. You can also call <code>el.start()</code> yourself, and <code>el.reset()</code> to abort and return to the idle screen.</p>
+        </section>
+
+        <section id="frameworks">
+          <h2>Frameworks</h2>
+          <p>Custom elements work in every framework. The only thing to remember is that the outcome arrives as DOM events, which some frameworks do not bind declaratively.</p>
+          <h3>React</h3>
+          <pre><code>import { useEffect, useRef } from 'react';
+import 'ok2ride';
+import type { OK2Ride, AssessmentResult } from 'ok2ride';
+
+export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: AssessmentResult) =&gt; void }) {
+  const ref = useRef&lt;OK2Ride&gt;(null);
+
+  useEffect(() =&gt; {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: CustomEvent&lt;AssessmentResult&gt;) =&gt; onPass(e.detail);
+    el.addEventListener('capability-passed', handler);
+    return () =&gt; el.removeEventListener('capability-passed', handler);
+  }, [onPass]);
+
+  return &lt;ok2ride-check ref={ref} stage-count="2" challenge-nonce={nonce} /&gt;;
+}</code></pre>
+          <p>Add the tag to <code>JSX.IntrinsicElements</code> if your TypeScript setup complains; React 19 types custom elements with plain attributes.</p>
+          <h3>Vue</h3>
+          <pre><code>&lt;ok2ride-check
+  stage-count="2"
+  :challenge-nonce="nonce"
+  @capability-passed="onPass($event.detail)"
+  @capability-failed="onFail($event.detail)"
+/&gt;</code></pre>
+          <p>Tell the Vue compiler the tag is custom: <code>compilerOptions.isCustomElement = (tag) =&gt; tag === 'ok2ride-check'</code>.</p>
+          <h3>Server-side rendering</h3>
+          <p>The element class extends <code>HTMLElement</code>, so import the package from client code only, or behind a <code>typeof window !== 'undefined'</code> guard. The token helpers have a separate DOM-free entry, see <a href="#verification">Server verification</a>.</p>
+        </section>
+
+        <section id="configuration">
+          <h2>Configuration</h2>
+          <p>Every attribute has a matching property. Values are validated and clamped; anything unparseable falls back to the default.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Attribute</th><th>Property</th><th>Type</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>stage-count</code></td><td><code>stageCount</code></td><td>number, 1–6</td><td><code>2</code></td><td>How many tests are drawn per run. Clamped to the pool size.</td></tr>
+                <tr><td><code>stage-pool</code></td><td><code>stagePool</code></td><td>comma-separated ids</td><td>all six</td><td>Which tests may be drawn: <code>pvt</code>, <code>spatial</code>, <code>go-no-go</code>, <code>trail</code>, <code>sequence</code>, <code>stroop</code>. Unknown ids are ignored; an empty pool means all.</td></tr>
+                <tr><td><code>difficulty</code></td><td><code>difficulty</code></td><td><code>easy</code> | <code>medium</code> | <code>hard</code></td><td><code>medium</code></td><td>Tunes tolerances, windows and error allowances of every test except the reaction thresholds. See <a href="#tests">The six tests</a>.</td></tr>
+                <tr><td><code>max-lapses</code></td><td><code>maxLapses</code></td><td>number, 0–20</td><td><code>2</code></td><td>Reaction test only: the run fails once the lapse count exceeds this.</td></tr>
+                <tr><td><code>time-limit-ms</code></td><td><code>timeLimitMs</code></td><td>number, 5 000–600 000</td><td><code>90000</code></td><td>Budget for the whole run, counted from the moment the rider acknowledges the instructions.</td></tr>
+                <tr><td><code>theme</code></td><td><code>theme</code></td><td><code>dark</code> | <code>light</code></td><td><code>dark</code></td><td>Applied instantly, even mid-run.</td></tr>
+                <tr><td><code>challenge-nonce</code></td><td><code>challengeNonce</code></td><td>string</td><td>none</td><td>Opaque value from your server. Echoed in the result and bound into the token so a result cannot be replayed for another unlock.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">
+            <p><strong>Configuration is frozen during a run.</strong> Attribute changes while a run is in progress take effect on the next <code>reset()</code> (or when the rider presses <em>Try again</em>). Changes while idle apply immediately.</p>
+          </div>
+          <h3>Read-only properties</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Property</th><th>Type</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>stage</code></td><td><code>TestStage</code></td><td>The current finite-state-machine stage, an immutable snapshot (see <a href="#run-flow">Run flow</a>).</td></tr>
+                <tr><td><code>plan</code></td><td><code>TestId[]</code></td><td>The tests drawn for the current or last run, in presentation order. Empty while idle.</td></tr>
+                <tr><td><code>config</code></td><td><code>AssessmentConfig</code></td><td>The fully resolved parameters in force, including every per-test threshold.</td></tr>
+                <tr><td><code>result</code></td><td><code>AssessmentResult | null</code></td><td>The outcome of the last run, or <code>null</code> until evaluated.</td></tr>
+                <tr><td><code>active</code></td><td><code>boolean</code></td><td>True while tests are running.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Methods</h3>
+          <ul>
+            <li><code>start()</code> begins a run: draws the tests and shows the instruction screen. After a completed run it resets first.</li>
+            <li><code>reset()</code> aborts any run, re-reads the attributes and returns to the idle screen. No event is dispatched.</li>
+          </ul>
+        </section>
+
+        <section id="events">
+          <h2>Events &amp; results</h2>
+          <p>All events are <code>CustomEvent</code>s that bubble and are composed, so they cross the shadow boundary and can be caught on any ancestor.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Event</th><th><code>detail</code></th><th>When</th></tr></thead>
+              <tbody>
+                <tr><td><code>capability-passed</code></td><td><code>AssessmentResult</code></td><td>Every drawn test passed.</td></tr>
+                <tr><td><code>capability-failed</code></td><td><code>AssessmentResult</code></td><td>A test failed, or the time limit ran out. The run stops at the first failure.</td></tr>
+                <tr><td><code>stage-change</code></td><td><code>{ stage, previous }</code></td><td>The stage type changed. Useful for analytics and for hiding surrounding UI during timed stages.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3><code>AssessmentResult</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>passed</code></td><td>boolean</td><td>Overall outcome.</td></tr>
+                <tr><td><code>failureReason</code></td><td><code>FailureReason | null</code></td><td>Why the run failed. See <a href="#failure-reasons">Failure reasons</a>.</td></tr>
+                <tr><td><code>failedTest</code></td><td><code>TestId | null</code></td><td>The test that ended the run, when it failed inside a test.</td></tr>
+                <tr><td><code>plan</code></td><td><code>TestId[]</code></td><td>Tests drawn, in presentation order.</td></tr>
+                <tr><td><code>results</code></td><td><code>TestResult[]</code></td><td>One typed entry per test that ran, in order. Tests after a failure are absent.</td></tr>
+                <tr><td><code>difficulty</code></td><td>string</td><td>Difficulty in force.</td></tr>
+                <tr><td><code>sessionId</code></td><td>string</td><td>Random 128-bit id generated per run.</td></tr>
+                <tr><td><code>nonce</code></td><td><code>string | null</code></td><td>The <code>challenge-nonce</code> in force.</td></tr>
+                <tr><td><code>issuedAt</code></td><td>ISO-8601 string</td><td>Wall-clock time of evaluation.</td></tr>
+                <tr><td><code>completionTimeMs</code></td><td>number</td><td>From instruction acknowledgement to evaluation.</td></tr>
+                <tr><td><code>meanRtMs</code>, <code>medianRtMs</code>, <code>fastestRtMs</code>, <code>slowestRtMs</code></td><td><code>number | null</code></td><td>Over every informative reaction time recorded across the run: PVT responses (excluding false starts and timeouts), Go/Stop hits and correct Stroop answers.</td></tr>
+                <tr><td><code>validTrialCount</code>, <code>lapseCount</code>, <code>falseStartCount</code>, <code>trials</code></td><td>numbers, <code>PvtTrial[]</code></td><td>Reaction-test metrics. Zero or empty when that test was not drawn.</td></tr>
+                <tr><td><code>spatial</code></td><td><code>SpatialResult | null</code></td><td>Steering result when it ran.</td></tr>
+                <tr><td><code>verificationToken</code></td><td>string</td><td>Checksummed token, see <a href="#verification">Server verification</a>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3><code>TestResult</code> variants</h3>
+          <p>Each entry in <code>results</code> is discriminated by its <code>test</code> field.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th><code>test</code></th><th>Fields</th></tr></thead>
+              <tbody>
+                <tr><td><code>pvt</code></td><td><code>trials</code>, <code>validTrialCount</code>, <code>lapseCount</code>, <code>falseStartCount</code>, <code>meanRtMs</code>, <code>medianRtMs</code>, <code>fastestRtMs</code>, <code>slowestRtMs</code>, <code>durationMs</code></td></tr>
+                <tr><td><code>spatial</code></td><td><code>targetAngle</code>, <code>finalAngle</code>, <code>errorDeg</code>, <code>toleranceDeg</code>, <code>durationMs</code>, <code>windowMs</code>, <code>withinTolerance</code>, <code>timedOut</code></td></tr>
+                <tr><td><code>go-no-go</code></td><td><code>trials</code> (each with <code>isGo</code>, <code>outcome</code>, <code>rtMs</code>), <code>hitCount</code>, <code>commissionCount</code>, <code>omissionCount</code>, <code>meanRtMs</code>, <code>durationMs</code></td></tr>
+                <tr><td><code>trail</code></td><td><code>count</code>, <code>reached</code>, <code>errorCount</code>, <code>durationMs</code>, <code>windowMs</code>, <code>completed</code>, <code>timedOut</code></td></tr>
+                <tr><td><code>sequence</code></td><td><code>length</code>, <code>sequence</code>, <code>entered</code>, <code>correct</code>, <code>durationMs</code>, <code>windowMs</code>, <code>timedOut</code></td></tr>
+                <tr><td><code>stroop</code></td><td><code>trials</code> (each with <code>word</code>, <code>ink</code>, <code>congruent</code>, <code>answer</code>, <code>correct</code>, <code>rtMs</code>), <code>correctCount</code>, <code>errorCount</code>, <code>meanRtMs</code>, <code>durationMs</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Every type is exported from the package, so <code>e.detail.results.find((r) =&gt; r.test === 'stroop')</code> narrows correctly in TypeScript.</p>
+        </section>
+
+        <section id="failure-reasons">
+          <h2>Failure reasons</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reason</th><th>Test</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>TOO_MANY_LAPSES</code></td><td>pvt</td><td>Lapses exceeded <code>max-lapses</code>.</td></tr>
+                <tr><td><code>TOO_MANY_FALSE_STARTS</code></td><td>pvt</td><td>More than three anticipations.</td></tr>
+                <tr><td><code>SPATIAL_OUT_OF_TOLERANCE</code></td><td>spatial</td><td>Released outside the target arc.</td></tr>
+                <tr><td><code>SPATIAL_TIMEOUT</code></td><td>spatial</td><td>Window expired with the handlebar outside the arc.</td></tr>
+                <tr><td><code>GO_NO_GO_COMMISSIONS</code></td><td>go-no-go</td><td>Too many taps on STOP (anticipations count too).</td></tr>
+                <tr><td><code>GO_NO_GO_OMISSIONS</code></td><td>go-no-go</td><td>Too many GO signals missed.</td></tr>
+                <tr><td><code>TRAIL_TOO_MANY_ERRORS</code></td><td>trail</td><td>Too many numbers tapped out of order.</td></tr>
+                <tr><td><code>TRAIL_TIMEOUT</code></td><td>trail</td><td>Window expired before the last number.</td></tr>
+                <tr><td><code>SEQUENCE_INCORRECT</code></td><td>sequence</td><td>A wrong tile was tapped.</td></tr>
+                <tr><td><code>SEQUENCE_TIMEOUT</code></td><td>sequence</td><td>Input window expired.</td></tr>
+                <tr><td><code>STROOP_TOO_MANY_ERRORS</code></td><td>stroop</td><td>Wrong or unanswered rounds exceeded the allowance.</td></tr>
+                <tr><td><code>TIME_LIMIT_EXCEEDED</code></td><td>any</td><td>The overall <code>time-limit-ms</code> ran out.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tests">
+          <h2>The six tests</h2>
+          <p>Each test is a self-contained module with its own stages, scoring and screen. The pool, and the number drawn, are yours to configure.</p>
+
+          <h3>Reaction (<code>pvt</code>)</h3>
+          <p>A Psychomotor Vigilance Task in its brief form. After a random foreperiod of 1 500–4 500 ms the panel flashes yellow and the rider taps it. Three consecutive valid taps pass the test; any invalid trial resets the streak.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reaction time</th><th>Outcome</th><th>Effect</th></tr></thead>
+              <tbody>
+                <tr><td>tap before the flash, or &lt; 100 ms after</td><td>False start</td><td>Trial invalidated, streak reset, counted (fail after 3).</td></tr>
+                <tr><td>100–450 ms</td><td>Valid</td><td>Streak +1.</td></tr>
+                <tr><td>&gt; 450 ms</td><td>Lapse</td><td>Streak reset, counted against <code>max-lapses</code>.</td></tr>
+                <tr><td>no tap within 2 000 ms</td><td>Lapse (timed out)</td><td>As above; excluded from mean RT.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>These thresholds are fixed by protocol and do not change with difficulty.</p>
+
+          <h3>Steering (<code>spatial</code>)</h3>
+          <p>A steering dial shows a target arc at a random angle between 25° and 65° to either side. The rider rotates the handlebar into the arc by dragging around the pivot, or by tilting the phone when the rider opted in on the instruction screen, and releases. The window expiring while the handlebar sits inside the arc also passes. Keyboard: arrows steer, Shift for 5° steps, Enter locks in.</p>
+
+          <h3>Go / Stop (<code>go-no-go</code>)</h3>
+          <p>Six signals, each after a 0.7–1.6 s foreperiod, stay up for 900 ms. Green <em>GO</em> must be tapped; red <em>STOP</em> must be left alone. Two of the six are STOP, never the first. Taps on STOP and anticipations are commission errors; unanswered GO signals are omissions.</p>
+
+          <h3>Number trail (<code>trail</code>)</h3>
+          <p>Numbers are placed on distinct cells of a 4×4 grid with a little jitter. The rider taps them in ascending order. Wrong taps flash the board and count as errors; taps on numbers already collected are ignored.</p>
+
+          <h3>Pattern memory (<code>sequence</code>)</h3>
+          <p>On a 3×3 grid, tiles light up one after another (600 ms on, 250 ms off; never the same tile twice in a row). Once the pattern has played the rider repeats it. One wrong tile fails the test immediately.</p>
+
+          <h3>Colour match (<code>stroop</code>)</h3>
+          <p>Five rounds. A colour word (RED, GREEN, BLUE, YELLOW) appears written in an ink colour that differs from the word four times out of five. Four buttons with swatches offer the answer; the rider taps the ink colour. Each round times out after 3 s and counts as an error.</p>
+
+          <h3>Difficulty presets</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Parameter</th><th>easy</th><th>medium</th><th>hard</th></tr></thead>
+              <tbody>
+                <tr><td>Steering tolerance / window</td><td>±8° / 4.0 s</td><td>±5° / 3.0 s</td><td>±3° / 2.5 s</td></tr>
+                <tr><td>Go/Stop false taps allowed</td><td>1</td><td>1</td><td>0</td></tr>
+                <tr><td>Go/Stop missed GO allowed</td><td>1</td><td>1</td><td>1</td></tr>
+                <tr><td>Trail numbers / window / errors allowed</td><td>6 / 15 s / 3</td><td>8 / 12 s / 2</td><td>10 / 11 s / 1</td></tr>
+                <tr><td>Pattern length</td><td>3</td><td>4</td><td>5</td></tr>
+                <tr><td>Colour match errors allowed</td><td>2</td><td>1</td><td>0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Every value above, and the fixed ones, are readable from <code>el.config</code> and exported as <code>BASE_CONFIG</code> and <code>DIFFICULTY_PRESETS</code>.</p>
+        </section>
+
+        <section id="run-flow">
+          <h2>Run flow &amp; timing</h2>
+          <p>A run is a deterministic finite state machine. The framework stages are:</p>
+          <div class="flow">
+            <span class="node">IDLE</span><span class="arrow">→</span>
+            <span class="node">INSTRUCTION</span><span class="arrow">→</span>
+            <span class="node accent">TEST_INTRO</span><span class="arrow">→</span>
+            <span class="node">test stages…</span><span class="arrow">→</span>
+            <span class="node accent">TEST_INTRO</span><span class="arrow">→</span>
+            <span class="node">test stages…</span><span class="arrow">→</span>
+            <span class="node">EVALUATED</span>
+          </div>
+          <p>Pressing <em>Start check</em> draws the plan and shows the instruction screen, which lists the drawn tests. Acknowledging it starts the overall clock and shows the intro for the first test; pressing <em>Go</em> enters that test's own stages. When a test passes, the next intro appears; when one fails, the run is evaluated immediately.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Test</th><th>Stage types</th></tr></thead>
+              <tbody>
+                <tr><td>pvt</td><td><code>PVT_AWAITING_STIMULUS</code> → <code>PVT_STIMULUS_ACTIVE</code> → <code>PVT_RESULT_DISPLAY</code>, repeated per trial</td></tr>
+                <tr><td>spatial</td><td><code>SPATIAL_MATCHING</code></td></tr>
+                <tr><td>go-no-go</td><td><code>GNG_AWAITING</code> → <code>GNG_STIMULUS_ACTIVE</code> → <code>GNG_RESULT_DISPLAY</code>, repeated per signal</td></tr>
+                <tr><td>trail</td><td><code>TRAIL_ACTIVE</code></td></tr>
+                <tr><td>sequence</td><td><code>SEQUENCE_SHOWING</code> (one step per tile, lit and unlit) → <code>SEQUENCE_INPUT</code></td></tr>
+                <tr><td>stroop</td><td><code>STROOP_TRIAL</code> → <code>STROOP_RESULT_DISPLAY</code>, repeated per round</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>How reaction times are measured</h3>
+          <ul>
+            <li>Every tap handler samples <code>performance.now()</code> as its very first statement, before any other work, and passes that timestamp into the state machine.</li>
+            <li>Flash stimuli (reaction, Go/Stop) are revealed inside <code>requestAnimationFrame</code>: the onset timestamp is taken in that frame callback, immediately before the paint that shows the flash. RT is <code>tapTime − onset</code>.</li>
+            <li>The engine arms exactly one timer per stage, described by <code>timerEffectFor()</code>. Stale timers (for example a stimulus timeout that fires after the rider already tapped) are ignored because the reducer returns the same state for actions that no longer apply.</li>
+            <li>If the tab is hidden, animation frames pause, so a stimulus is never "shown" while nobody can see it. The overall time limit keeps running.</li>
+            <li>Pointer input uses <code>pointerdown</code>, not <code>click</code>, so there is no tap delay and no double firing. Keyboard uses Enter and Space.</li>
+          </ul>
+          <p>Removing the element from the document during a run abandons the run silently and clears every timer; reattaching shows the idle screen.</p>
+        </section>
+
+        <section id="verification">
+          <h2>Server verification</h2>
+          <p>The result carries a <code>verificationToken</code> of the form <code>ok2r1.&lt;base64url claims&gt;.&lt;fnv1a-64 checksum&gt;</code>. The claims are:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Claim</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>v</code></td><td>Token version, <code>1</code>.</td></tr>
+                <tr><td><code>sid</code></td><td>Session id.</td></tr>
+                <tr><td><code>nonce</code></td><td>Your <code>challenge-nonce</code>, or <code>null</code>.</td></tr>
+                <tr><td><code>ok</code></td><td>Passed.</td></tr>
+                <tr><td><code>iat</code></td><td>Issued-at, ISO-8601.</td></tr>
+                <tr><td><code>ct</code></td><td>Completion time in ms.</td></tr>
+                <tr><td><code>rt</code></td><td>Mean reaction time in ms, or <code>null</code>.</td></tr>
+                <tr><td><code>lp</code>, <code>fs</code></td><td>Lapse and false-start counts.</td></tr>
+                <tr><td><code>se</code></td><td>Steering error in degrees, or <code>null</code>.</td></tr>
+                <tr><td><code>pl</code></td><td>The plan, comma-separated test ids.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout danger">
+            <p><strong>The token is tamper-evident, not unforgeable.</strong> It is produced in the browser, so a hostile client can produce any token it likes. The checksum protects against corruption and casual tampering; the nonce protects against replay. Your backend must be the authority: issue a nonce per unlock attempt, accept each nonce once, and require freshness.</p>
+          </div>
+          <p>The token helpers ship in a DOM-free entry so they run in Node, Deno, Bun or an edge runtime:</p>
+          <pre><code>import { decodeVerificationToken } from 'ok2ride/token';
+
+export async function unlock(req) {
+  const { vehicleId, token } = await req.json();
+  const claims = decodeVerificationToken(token);          // null if malformed or checksum mismatch
+  if (!claims || !claims.ok) return deny('failed');
+
+  const challenge = await challenges.take(claims.nonce);  // one-time use: removes it
+  if (!challenge || challenge.userId !== req.user.id) return deny('unknown-nonce');
+  if (Date.now() - Date.parse(claims.iat) &gt; 2 * 60_000) return deny('stale');
+  if (Math.abs(Date.now() - challenge.issuedAt - claims.ct) &gt; 10 * 60_000) return deny('implausible');
+
+  await vehicles.unlock(vehicleId, { checkedAt: claims.iat, meanRt: claims.rt, plan: claims.pl });
+  return ok();
+}</code></pre>
+          <p>Recommended policy on top of the token: rate-limit attempts per user, log the full <code>AssessmentResult</code> alongside the unlock for audit, and treat repeated failures as a cool-down rather than a hard block.</p>
+        </section>
+
+        <section id="theming">
+          <h2>Theming</h2>
+          <p>The element ships a dark theme tuned for night-time outdoor use and a light theme for daylight. Switch with the <code>theme</code> attribute; it applies instantly.</p>
+          <pre><code>const prefersLight = matchMedia('(prefers-color-scheme: light)');
+el.theme = prefersLight.matches ? 'light' : 'dark';
+prefersLight.addEventListener('change', (e) =&gt; (el.theme = e.matches ? 'light' : 'dark'));</code></pre>
+          <h3>Sizing</h3>
+          <p>The host is <code>display: block</code>, <code>width: 100%</code>, <code>max-width: 480px</code>, centred. Override those on the element itself:</p>
+          <pre><code>ok2ride-check { max-width: none; }</code></pre>
+          <h3>CSS parts</h3>
+          <p>Internal styles are encapsulated. The parts below are exposed for restyling; everything else is private.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Part</th><th>Element</th></tr></thead>
+              <tbody>
+                <tr><td><code>modal</code></td><td>The outer card.</td></tr>
+                <tr><td><code>header</code></td><td>Top bar with brand and stage label.</td></tr>
+                <tr><td><code>stage-label</code></td><td>The "Test 1 of 2 · Reaction" label.</td></tr>
+                <tr><td><code>screen</code></td><td>The content area below the header.</td></tr>
+                <tr><td><code>tap-area</code></td><td>The reaction and Go/Stop panel.</td></tr>
+                <tr><td><code>dial</code></td><td>The steering dial wrapper.</td></tr>
+                <tr><td><code>trail-board</code></td><td>The number-trail board.</td></tr>
+                <tr><td><code>tiles</code></td><td>The pattern-memory grid.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <pre><code>ok2ride-check::part(modal) { border-radius: 8px; box-shadow: none; }
+ok2ride-check::part(header) { display: none; }</code></pre>
+          <p>Fonts inherit the system stack. The element sets <code>color-scheme</code> to match its theme so native controls inside it render correctly.</p>
+        </section>
+
+        <section id="accessibility">
+          <h2>Accessibility</h2>
+          <ul>
+            <li>Every interactive surface is keyboard operable: Enter or Space taps panels and buttons, arrow keys steer the handlebar, Tab moves between tiles and numbers.</li>
+            <li>The tap panel and dial carry <code>role="button"</code> and <code>role="slider"</code> with live values; feedback lines are <code>aria-live="assertive"</code>; the stage label is <code>aria-live="polite"</code>.</li>
+            <li>Colour is never the only carrier of meaning: GO/STOP and pass/fail are also spelled out, and the Stroop buttons are labelled by name.</li>
+            <li>Contrast targets outdoor readability: large type, thick borders, a saturated yellow stimulus with dark text.</li>
+            <li><code>prefers-reduced-motion</code> disables the few transitions and the error shake.</li>
+            <li>Touch targets are at least 48 px; timed panels use <code>touch-action: none</code> so a tap never scrolls the page.</li>
+          </ul>
+          <div class="callout">
+            <p>Timed tests are inherently hard for some riders. If your policy allows, expose an alternative verification path for users who cannot complete them, and use <code>easy</code> difficulty rather than removing tests.</p>
+          </div>
+        </section>
+
+        <section id="engine">
+          <h2>Engine API</h2>
+          <p>The state machine is exported for hosts that want to replay runs, build custom UIs or simulate policies. It is pure: time and randomness come in through an environment object.</p>
+          <pre><code>import { createInitialState, reduce, resolveConfig, timerEffectFor, selectPlan } from 'ok2ride';
+
+const config = resolveConfig({ difficulty: 'hard', stagePool: 'pvt,stroop', stageCount: 2 });
+let state = createInitialState(config, 'session-1', 'nonce-1');
+
+const env = (now) =&gt; ({ now, epochMs: Date.now(), random: Math.random });
+
+state = reduce(state, { type: 'START_ASSESSMENT' }, env(0));           // draws state.plan
+state = reduce(state, { type: 'ACKNOWLEDGE_INSTRUCTIONS' }, env(1000));
+state = reduce(state, { type: 'BEGIN_TEST' }, env(1200));
+
+const timer = timerEffectFor(state, 1200);
+// e.g. { action: { type: 'TRIGGER_STIMULUS' }, delayMs: 2987 }</code></pre>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Export</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td><code>reduce(state, action, env)</code></td><td>Pure transition. Returns the same reference when the action does not apply.</td></tr>
+                <tr><td><code>createInitialState(config, sessionId, nonce)</code></td><td>Idle state.</td></tr>
+                <tr><td><code>timerEffectFor(state, now)</code></td><td>The one timer the host should arm for the current stage, or <code>null</code>.</td></tr>
+                <tr><td><code>selectPlan(config, random)</code></td><td>Draws the tests for a run.</td></tr>
+                <tr><td><code>resolveConfig(input)</code></td><td>Validates loose attribute values into an <code>AssessmentConfig</code>.</td></tr>
+                <tr><td><code>TASKS</code>, <code>taskForStage(stage)</code></td><td>The task modules and the module owning a given stage.</td></tr>
+                <tr><td><code>TEST_INFO</code>, <code>FAILURE_MESSAGES</code></td><td>Human-readable names, descriptions and failure messages.</td></tr>
+                <tr><td><code>buildVerificationToken</code>, <code>decodeVerificationToken</code></td><td>Token helpers; also available from <code>ok2ride/token</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Actions</h3>
+          <p><code>START_ASSESSMENT</code>, <code>ACKNOWLEDGE_INSTRUCTIONS</code>, <code>BEGIN_TEST</code>, <code>TRIGGER_STIMULUS</code>, <code>TARGET_TAPPED</code>, <code>STIMULUS_TIMEOUT</code>, <code>ADVANCE</code>, <code>UPDATE_SPATIAL_ANGLE</code>, <code>COMPLETE_SPATIAL_STAGE</code>, <code>TRAIL_TAPPED</code>, <code>SEQUENCE_TILE_TAPPED</code>, <code>STROOP_ANSWERED</code>, <code>STAGE_TIMEOUT</code>, <code>TIME_LIMIT_REACHED</code>, <code>RESET_TEST</code>. Timed inputs carry a <code>tapTime</code>.</p>
+        </section>
+
+        <section id="example-app">
+          <h2>Example app: OK2Ride Bikes</h2>
+          <p>The repository ships a complete integration in <code>examples/bike-rental/</code>: a small bike-rental web app with its own API server. It is the quickest way to see the widget inside a real unlock flow, and its server shows the verification rules from the previous sections as working code.</p>
+          <pre><code>npm run rent    # http://localhost:5174</code></pre>
+          <ol>
+            <li>The rider picks a bike on the map. City bikes need 2 tests; e-bikes and cargo bikes need 3.</li>
+            <li>The app requests a challenge. The server returns a one-time nonce with the <code>stage-count</code> and <code>difficulty</code> for that bike type.</li>
+            <li>The app mounts <code>&lt;ok2ride-check&gt;</code> with those attributes and calls <code>start()</code>, so the rider lands on the instructions.</li>
+            <li>On <code>capability-passed</code>, the token goes to <code>POST /api/rentals</code>. The server checks the checksum, outcome, nonce owner, single use, expiry, bike, freshness, timing and test count, then returns an unlock code.</li>
+            <li>On <code>capability-failed</code>, the token goes to <code>POST /api/checks/failed</code>, which consumes the nonce and starts a 30-second cooldown shown in the app.</li>
+          </ol>
+          <p>The rules live in <code>examples/bike-rental/server/store.ts</code>, each with a unit test. The HTTP layer is a Connect-style middleware, so the same code runs under Vite, Express or a bare <code>node:http</code> server.</p>
+        </section>
+
+        <section id="extending">
+          <h2>Adding a test</h2>
+          <p>A test is two files and one id.</p>
+          <ol>
+            <li>Add the id to <code>TestId</code> and <code>TEST_IDS</code> in <code>src/types.ts</code>, plus its stage variants, result interface and failure reasons.</li>
+            <li>Create <code>src/tasks/&lt;name&gt;.ts</code> exporting a <code>TaskModule</code>: <code>stageTypes</code>, <code>start(config, env)</code>, <code>reduce(stage, action, config, env)</code> returning <code>noop</code> | <code>stage</code> | <code>done</code>, and <code>timerEffect(stage, config, now)</code>. Register it in <code>src/tasks/index.ts</code>.</li>
+            <li>Create <code>src/components/screens/&lt;name&gt;.ts</code> exporting a <code>ScreenFactory</code> that builds its nodes once and patches them on every state change. Map the stage types to it in <code>src/components/screens/index.ts</code>, and add a name and description to <code>TEST_INFO</code>.</li>
+            <li>Write reducer tests with an injected <code>random</code> and a DOM test under happy-dom, following the existing ones.</li>
+          </ol>
+          <p>The core never needs to change: plan selection, intros, time limits, evaluation and events all work from the module contract.</p>
+        </section>
+
+        <section id="faq">
+          <h2>FAQ</h2>
+          <h3>Can riders cheat by automating taps?</h3>
+          <p>The random draw, random foreperiods, random targets and the nonce make scripted replays impractical, but nothing running in a browser is tamper-proof. Combine the check with server-side nonces, rate limits and your existing fraud signals.</p>
+          <h3>Why does a valid tap sometimes read a few milliseconds high?</h3>
+          <p>Onset is sampled at the animation frame that reveals the stimulus; the actual pixels appear at the next display refresh, up to one frame later. This bias is constant and well under the 100 ms and 450 ms thresholds.</p>
+          <h3>Tilt steering does not appear on my phone.</h3>
+          <p>The toggle only shows when the steering test is in the plan and the browser exposes <code>DeviceOrientationEvent</code>. iOS additionally requires a secure context (HTTPS) and a permission prompt, which the toggle triggers.</p>
+          <h3>Can I always include the reaction test?</h3>
+          <p>Set <code>stage-pool="pvt"</code> with <code>stage-count="1"</code> for reaction only, or a pool of two with <code>stage-count="2"</code> to always run both. A "required test plus random extras" mode is a small change to <code>selectPlan</code> if you need it.</p>
+          <h3>Does it work offline?</h3>
+          <p>Yes. The element has no network dependency. Only your unlock call needs connectivity.</p>
+        </section>
+      </main>
+    </div>
+
+    <footer class="site-footer">
+      <div class="container">
+        <span>OK2Ride · ride-readiness check web component</span>
+        <span><a href="./index.html">Home</a></span>
+      </div>
+    </footer>
+
+    <script type="module" src="./docs.ts"></script>
+  </body>
+</html>

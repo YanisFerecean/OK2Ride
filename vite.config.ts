@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * Library build: compiles the `<cognitive-captcha>` custom element into a
- * single self-registering ES module at `dist/cognitive-captcha.js`.
+ * Library build: compiles the `<ok2ride-check>` custom element into a
+ * single self-registering ES module at `dist/ok2ride.js`.
  * Type declarations are emitted separately by `tsc -p tsconfig.build.json`.
  */
 export default defineConfig({
@@ -15,7 +15,7 @@ export default defineConfig({
     lib: {
       entry: 'src/index.ts',
       formats: ['es'],
-      fileName: () => 'cognitive-captcha.js',
+      fileName: () => 'ok2ride.js',
     },
     rollupOptions: {
       output: {
@@ -23,8 +23,15 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    // Lets tests import the package the way integrators do (used by examples/).
+    alias: [
+      { find: /^ok2ride\/token$/, replacement: decodeURIComponent(new URL('./src/token.ts', import.meta.url).pathname) },
+      { find: /^ok2ride$/, replacement: decodeURIComponent(new URL('./src/index.ts', import.meta.url).pathname) },
+    ],
+  },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'examples/**/*.test.ts'],
     environment: 'node',
   },
 });

@@ -1,5 +1,5 @@
 /**
- * Public entry point. Importing this module registers `<cognitive-captcha>`
+ * Public entry point. Importing this module registers `<ok2ride-check>`
  * (once) and re-exports the engine so hosts can type their event handlers,
  * replay assessments, or validate tokens.
  *
@@ -7,11 +7,11 @@
  * client-side code (or behind a `typeof window !== 'undefined'` guard).
  */
 
-import { CognitiveCaptcha, TAG_NAME } from './components/CognitiveCaptcha';
-import type { CognitiveCaptchaEventMap } from './components/CognitiveCaptcha';
+import { OK2Ride, TAG_NAME } from './components/OK2Ride';
+import type { OK2RideEventMap } from './components/OK2Ride';
 
-export { CognitiveCaptcha, TAG_NAME };
-export type { CognitiveCaptchaEventMap, StageChangeDetail } from './components/CognitiveCaptcha';
+export { OK2Ride, TAG_NAME };
+export type { OK2RideEventMap, StageChangeDetail } from './components/OK2Ride';
 export * from './types';
 export { BASE_CONFIG, DEFAULT_DIFFICULTY, DIFFICULTY_PRESETS, LIMITS, isDifficulty, parseStagePool, resolveConfig } from './config';
 export type { ConfigInput } from './config';
@@ -35,20 +35,20 @@ export { buildVerificationToken, decodeVerificationToken, fnv1a64, TOKEN_PREFIX 
 export type { TokenClaims } from './token';
 
 /** Registers the element under `tagName` if nothing is registered there yet. */
-export function defineCognitiveCaptcha(tagName: string = TAG_NAME): void {
+export function defineOK2Ride(tagName: string = TAG_NAME): void {
   if (typeof customElements === 'undefined') return;
-  if (!customElements.get(tagName)) customElements.define(tagName, CognitiveCaptcha);
+  if (!customElements.get(tagName)) customElements.define(tagName, OK2Ride);
 }
 
-defineCognitiveCaptcha();
+defineOK2Ride();
 
 declare global {
   interface HTMLElementTagNameMap {
-    'cognitive-captcha': CognitiveCaptcha;
+    'ok2ride-check': OK2Ride;
   }
   interface HTMLElementEventMap {
-    'capability-passed': CognitiveCaptchaEventMap['capability-passed'];
-    'capability-failed': CognitiveCaptchaEventMap['capability-failed'];
-    'stage-change': CognitiveCaptchaEventMap['stage-change'];
+    'capability-passed': OK2RideEventMap['capability-passed'];
+    'capability-failed': OK2RideEventMap['capability-failed'];
+    'stage-change': OK2RideEventMap['stage-change'];
   }
 }

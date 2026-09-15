@@ -1,5 +1,5 @@
 /**
- * Core type definitions for the Cognitive CAPTCHA assessment engine.
+ * Core type definitions for the OK2Ride assessment engine.
  *
  * Everything in this module is plain data: no DOM, no timers, no side effects.
  * The state machine (`stateMachine.ts`), the task modules (`tasks/*`) and the

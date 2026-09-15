@@ -1,12 +1,12 @@
-# `<cognitive-captcha>`
+# OK2Ride
 
-A standalone W3C web component that runs a short cognitive capability check
+OK2Ride is a standalone W3C web component, `<ok2ride-check>`, that runs a short cognitive capability check
 before a micromobility vehicle (e-scooter, e-bike) is unlocked. Every run
 draws a random set of tests from a pool of six (reaction, steering, go/no-go,
 number trail, pattern memory, colour match) and reports the outcome through
 DOM events.
 
-- Zero runtime dependencies; one ES module (`dist/cognitive-captcha.js`).
+- Zero runtime dependencies; one ES module (`dist/ok2ride.js`).
 - Shadow DOM: styles and markup are fully encapsulated.
 - Deterministic finite state machine with millisecond timing via `performance.now()`.
 - Mobile-first, high-contrast UI for outdoor daylight and night-time use.
@@ -14,29 +14,29 @@ DOM events.
 ## Usage
 
 ```html
-<script type="module" src="/dist/cognitive-captcha.js"></script>
+<script type="module" src="/dist/ok2ride.js"></script>
 
-<cognitive-captcha
+<ok2ride-check
   stage-count="2"
   difficulty="medium"
   time-limit-ms="90000"
   theme="dark"
   challenge-nonce="server-issued-nonce"
-></cognitive-captcha>
+></ok2ride-check>
 
 <script type="module">
-  const captcha = document.querySelector('cognitive-captcha');
+  const captcha = document.querySelector('ok2ride-check');
   captcha.addEventListener('capability-passed', (e) => unlockVehicle(e.detail.verificationToken));
   captcha.addEventListener('capability-failed', (e) => console.warn(e.detail.failureReason));
 </script>
 ```
 
-With a bundler, `import 'cognitive-captcha'` registers the element and exposes
+With a bundler, `import 'ok2ride'` registers the element and exposes
 the engine types:
 
 ```ts
-import 'cognitive-captcha';
-import type { AssessmentResult } from 'cognitive-captcha';
+import 'ok2ride';
+import type { AssessmentResult } from 'ok2ride';
 ```
 
 ### Attributes / properties
@@ -105,7 +105,7 @@ audit runs.
 
 ## Verification token
 
-`verificationToken` has the form `cc1.<base64url claims>.<fnv1a-64 checksum>`.
+`verificationToken` has the form `ok2r1.<base64url claims>.<fnv1a-64 checksum>`.
 `decodeVerificationToken()` (exported) parses and checksum-validates it. The
 token is generated client-side, so it is tamper-evident but **not
 unforgeable**. A backend must validate the decoded claims (session id, nonce,
@@ -120,10 +120,15 @@ src/
   stateMachine.ts              Run lifecycle reducer, plan selection, scoring, timerEffectFor()
   tasks/                       One module per test: start / reduce / timerEffect (pure, no DOM)
   token.ts                     Token encode / decode
-  components/CognitiveCaptcha.ts  Custom element: attributes, shadow DOM, timers, events
+  components/OK2Ride.ts  Custom element: attributes, shadow DOM, timers, events
   components/screens/          One renderer per screen (build once, patch on every state change)
   components/styles.ts         Encapsulated CSS string
   index.ts                     Public exports + auto-registration
+examples/bike-rental/          Example rental app (browser app + API server), see its README
+site/
+  index.html, main.ts          Landing page with the live widget and event log
+  docs.html, docs.ts           Documentation
+  assets/site.css              Site styles (independent of the widget's shadow styles)
 ```
 
 `reduce(state, action, env)` is deterministic: time and randomness are injected
@@ -137,14 +142,52 @@ onset time is sampled right before the paint.
 Adding a test means one module in `tasks/`, one screen in
 `components/screens/`, and a new `TestId`.
 
+## Website & documentation
+
+The `site/` directory holds the project website: a landing page with the live
+widget and the full documentation (installation, configuration, events and
+result payload, the six tests, run flow and timing, server verification,
+theming, accessibility, engine API). It is a static Vite multi-page build with
+a relative base, so the output can be hosted from any path.
+
+```sh
+npm run dev           # website with the live widget at http://localhost:5173
+npm run site:build    # static output in dist-site/
+npm run site:preview  # serve dist-site/
+```
+
+## Example: bike rental app
+
+`examples/bike-rental/` is a small rental web app, OK2Ride Bikes, with its own
+API server. Every unlock goes through the widget: the server issues a
+one-time nonce, the widget runs with it, and the rental starts only after the
+server has verified the token. Failed checks start a short cooldown.
+
+```sh
+npm run rent       # http://localhost:5174
+```
+
+See `examples/bike-rental/README.md` for the flow, the server rules and the API.
+
+## Server-side token helpers
+
+`ok2ride/token` is a DOM-free entry (`dist/token.js`) for backends:
+
+```js
+import { decodeVerificationToken } from 'ok2ride/token';
+const claims = decodeVerificationToken(token); // null when malformed or tampered
+```
+
 ## Development
 
 ```sh
 npm install
-npm run dev        # demo page at http://localhost:5173
+npm run dev        # website + live widget at http://localhost:5173
 npm run typecheck
 npm test
-npm run build      # dist/cognitive-captcha.js + dist/types/
+npm run rent       # example bike-rental app + API at http://localhost:5174
+npm run build      # dist/ok2ride.js, dist/token.js, dist/types/
+npm run check      # typecheck + tests + library, site and example builds
 ```
 
 The element extends `HTMLElement`, so import the module from browser code only.

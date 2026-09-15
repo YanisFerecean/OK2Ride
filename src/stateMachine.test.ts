@@ -581,7 +581,7 @@ describe('verification token', () => {
   it('round-trips the outcome and binds the nonce and plan', () => {
     const s1 = reduce(reachSpatial(), { type: 'UPDATE_SPATIAL_ANGLE', angle: 45 }, env(20_100));
     const { details } = expectStage(reduce(s1, { type: 'COMPLETE_SPATIAL_STAGE' }, env(20_200)), 'EVALUATED');
-    expect(details.verificationToken).toMatch(/^cc1\.[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
+    expect(details.verificationToken).toMatch(/^ok2r1\.[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
     expect(decodeVerificationToken(details.verificationToken)).toEqual({
       v: 1,
       sid: 'session-1',

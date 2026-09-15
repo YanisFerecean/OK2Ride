@@ -17,7 +17,12 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "ok2ride": ["./src/index.ts"],
+      "ok2ride/token": ["./src/token.ts"]
+    }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "site", "examples", "vite.config.ts", "vite.site.config.ts", "vite.token.config.ts", "vite.rent.config.ts"]
 }

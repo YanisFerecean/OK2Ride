@@ -4,12 +4,12 @@
   "modules": [
     {
       "kind": "javascript-module",
-      "path": "dist/cognitive-captcha.js",
+      "path": "dist/ok2ride.js",
       "declarations": [
         {
           "kind": "class",
-          "name": "CognitiveCaptcha",
-          "tagName": "cognitive-captcha",
+          "name": "OK2Ride",
+          "tagName": "ok2ride-check",
           "customElement": true,
           "description": "Randomly drawn cognitive capability check (reaction, steering, go/no-go, number trail, pattern memory, colour match) for gating micromobility unlocks.",
           "attributes": [
@@ -176,16 +176,16 @@
       "exports": [
         {
           "kind": "js",
-          "name": "CognitiveCaptcha",
+          "name": "OK2Ride",
           "declaration": {
-            "name": "CognitiveCaptcha"
+            "name": "OK2Ride"
           }
         },
         {
           "kind": "custom-element-definition",
-          "name": "cognitive-captcha",
+          "name": "ok2ride",
           "declaration": {
-            "name": "CognitiveCaptcha"
+            "name": "OK2Ride"
           }
         }
       ]

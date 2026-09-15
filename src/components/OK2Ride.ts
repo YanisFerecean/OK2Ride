@@ -1,5 +1,5 @@
 /**
- * `<cognitive-captcha>`: a self-contained W3C custom element that runs a
+ * `<ok2ride-check>`: a self-contained W3C custom element that runs a
  * randomly drawn set of cognitive tests inside an encapsulated shadow root
  * and reports the outcome through DOM events.
  *
@@ -26,14 +26,14 @@ import { SCREEN_FACTORIES, SCREEN_FOR_STAGE, type Screen, type ScreenContext, ty
 import { STYLES } from './styles';
 import { TEST_INFO } from './testInfo';
 
-export const TAG_NAME = 'cognitive-captcha';
+export const TAG_NAME = 'ok2ride-check';
 
 export interface StageChangeDetail {
   readonly stage: TestStage;
   readonly previous: TestStage;
 }
 
-export interface CognitiveCaptchaEventMap {
+export interface OK2RideEventMap {
   'capability-passed': CustomEvent<AssessmentResult>;
   'capability-failed': CustomEvent<AssessmentResult>;
   'stage-change': CustomEvent<StageChangeDetail>;
@@ -67,7 +67,7 @@ async function requestOrientationPermission(): Promise<boolean> {
   }
 }
 
-export class CognitiveCaptcha extends HTMLElement {
+export class OK2Ride extends HTMLElement {
   static get observedAttributes(): readonly string[] {
     return OBSERVED_ATTRIBUTES;
   }
@@ -98,7 +98,7 @@ export class CognitiveCaptcha extends HTMLElement {
       h(
         'div',
         { class: 'modal', part: 'modal', role: 'group', 'aria-label': 'Ride readiness check' },
-        h('div', { class: 'header', part: 'header' }, h('span', { class: 'brand' }, 'Ride check'), this.#stageLabel),
+        h('div', { class: 'header', part: 'header' }, h('span', { class: 'brand' }, 'OK2Ride'), this.#stageLabel),
         this.#screenHost,
       ),
     );
@@ -282,7 +282,7 @@ export class CognitiveCaptcha extends HTMLElement {
     }
   }
 
-  #emit<K extends keyof CognitiveCaptchaEventMap>(type: K, detail: CognitiveCaptchaEventMap[K]['detail']): void {
+  #emit<K extends keyof OK2RideEventMap>(type: K, detail: OK2RideEventMap[K]['detail']): void {
     this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
   }
 

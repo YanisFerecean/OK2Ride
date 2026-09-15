@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>OK2Ride · Ride-readiness check web component</title>
+    <meta name="description" content="A standalone web component that runs a randomised 30-second cognitive check (reaction, steering, go/no-go, number trail, pattern memory, colour match) before a scooter or e-bike unlocks." />
+    <link rel="stylesheet" href="./assets/site.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="./index.html"><span class="logo">OK</span> OK2Ride</a>
+        <nav aria-label="Site">
+          <a href="./index.html" aria-current="page">Home</a>
+          <a href="#tests">Tests</a>
+          <a href="#install">Install</a>
+          <a href="./docs.html">Documentation</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="container hero" id="demo">
+        <div>
+          <h1>Prove you're fit to ride. In about thirty seconds.</h1>
+          <p class="lead">
+            OK2Ride is a standalone web component, <code>&lt;ok2ride-check&gt;</code>, that runs a short, randomised cognitive check before a shared
+            e-scooter or e-bike unlocks. Every run draws tests from a pool of six, measures reactions to the millisecond, and hands your
+            backend a result it can verify.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="./docs.html#getting-started">Get started</a>
+            <a class="btn" href="./docs.html">Read the docs</a>
+          </div>
+          <div class="facts">
+            <span>Zero dependencies</span>
+            <span>Shadow DOM, one ES module</span>
+            <span>19 KB gzipped</span>
+            <span>Works in any framework</span>
+          </div>
+          <p class="muted">Try it on the right. Tests are drawn at random each time you press <strong>Start check</strong>; use the controls to steer the draw.</p>
+        </div>
+
+        <div class="demo-card">
+          <ok2ride-check stage-count="2" difficulty="medium" time-limit-ms="90000" theme="dark" challenge-nonce="demo-nonce"></ok2ride-check>
+          <div class="controls">
+            <label>Tests per run
+              <select id="stageCount">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </label>
+            <label>Difficulty
+              <select id="difficulty">
+                <option value="easy">easy</option>
+                <option value="medium" selected>medium</option>
+                <option value="hard">hard</option>
+              </select>
+            </label>
+            <label>Time limit (ms)
+              <input id="timeLimit" type="number" min="5000" step="1000" value="90000" />
+            </label>
+            <label>Theme
+              <select id="theme">
+                <option value="dark" selected>dark</option>
+                <option value="light">light</option>
+              </select>
+            </label>
+          </div>
+          <div class="pool" id="pool" aria-label="Tests eligible for the draw">
+            <label><input type="checkbox" value="pvt" checked /> Reaction</label>
+            <label><input type="checkbox" value="spatial" checked /> Steering</label>
+            <label><input type="checkbox" value="go-no-go" checked /> Go / Stop</label>
+            <label><input type="checkbox" value="trail" checked /> Number trail</label>
+            <label><input type="checkbox" value="sequence" checked /> Pattern memory</label>
+            <label><input type="checkbox" value="stroop" checked /> Colour match</label>
+          </div>
+          <div><button class="btn" id="reset" type="button">Reset widget</button></div>
+        </div>
+      </section>
+
+      <section class="container log-panel">
+        <div class="log-head">
+          <h3>Events</h3>
+          <button class="btn" id="clear-log" type="button">Clear</button>
+        </div>
+        <pre class="log" id="log">Start a check to see stage-change, capability-passed and capability-failed events here.</pre>
+      </section>
+
+      <section class="section" id="tests">
+        <div class="container">
+          <div class="section-head">
+            <h2>Six tests, drawn at random</h2>
+            <p class="muted">Each run shuffles the pool and presents <code>stage-count</code> tests one after another, with a short intro before each. The run stops at the first failed test. Difficulty tunes tolerances and error allowances; the reaction thresholds never change.</p>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <h3><span class="chip">PVT</span> Reaction</h3>
+              <p>After a random 1.5–4.5 s wait the panel flashes yellow. Tap as fast as you can, three clean taps in a row. Measures vigilance, the strongest single indicator of impairment and fatigue.</p>
+              <div class="rule"><strong>Pass</strong> RT 100–450 ms is valid; over 450 ms is a lapse; under 100 ms is a false start. Lapses within <code>max-lapses</code>.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip green">STR</span> Steering</h3>
+              <p>Rotate a handlebar into a highlighted arc by dragging (or tilting the phone) and let go. Measures motor control and spatial judgement.</p>
+              <div class="rule"><strong>Pass</strong> Released within ±5° of the target inside 3 s on medium.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip red">GNG</span> Go / Stop</h3>
+              <p>Six signals: tap fast on green <em>GO</em>, hold back on red <em>STOP</em>. Measures response inhibition, which alcohol degrades early.</p>
+              <div class="rule"><strong>Pass</strong> At most one false tap and one missed GO on medium; zero false taps on hard.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip blue">TRL</span> Number trail</h3>
+              <p>Numbers scattered on a board; tap them in ascending order against the clock. Measures visual scanning and sequencing (Trail Making Test A).</p>
+              <div class="rule"><strong>Pass</strong> 1 to 8 in order within 12 s with at most two wrong taps on medium.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip">SEQ</span> Pattern memory</h3>
+              <p>Tiles light up in turn; repeat the pattern. Measures working memory span.</p>
+              <div class="rule"><strong>Pass</strong> A 4-tile pattern repeated exactly within 8 s on medium; 3 on easy, 5 on hard.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip green">CLR</span> Colour match</h3>
+              <p>A colour word appears in a different ink; tap the ink colour, not the word. Measures interference control (Stroop).</p>
+              <div class="rule"><strong>Pass</strong> Five rounds with at most one wrong or unanswered on medium.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="how">
+        <div class="container">
+          <div class="section-head">
+            <h2>How it works</h2>
+          </div>
+          <ol class="steps">
+            <li><strong>Draw</strong><span>The component shuffles the pool and picks the tests for this run. The rider sees what to expect, then a Go button before each test.</span></li>
+            <li><strong>Measure</strong><span>Inputs are timestamped with <code>performance.now()</code>; flash stimuli are revealed on an animation frame so onset is sampled right before the paint.</span></li>
+            <li><strong>Verify</strong><span>The result event carries per-test metrics and a checksummed token bound to your nonce. Validate it on the server before unlocking.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="install">
+        <div class="container two-col">
+          <div>
+            <h2>Install</h2>
+            <p class="muted">Drop the module on the page, or import it from npm. Importing registers the element; nothing else is required.</p>
+            <pre><code>&lt;script type="module" src="/ok2ride.js"&gt;&lt;/script&gt;
+
+&lt;ok2ride-check
+  stage-count="2"
+  difficulty="medium"
+  challenge-nonce="nonce-from-your-server"
+&gt;&lt;/ok2ride-check&gt;</code></pre>
+          </div>
+          <div>
+            <h2>Listen</h2>
+            <p class="muted">Two events decide the outcome. Both bubble and cross shadow boundaries.</p>
+            <pre><code>const el = document.querySelector('ok2ride-check');
+
+el.addEventListener('capability-passed', (e) =&gt; {
+  // send e.detail.verificationToken to your backend
+});
+
+el.addEventListener('capability-failed', (e) =&gt; {
+  console.warn(e.detail.failureReason, e.detail.failedTest);
+});</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <span>OK2Ride · ride-readiness check web component</span>
+        <span><a href="./docs.html">Documentation</a></span>
+      </div>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

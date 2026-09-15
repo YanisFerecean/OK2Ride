@@ -35,7 +35,7 @@ export interface TokenClaims {
   readonly pl: string;
 }
 
-export const TOKEN_PREFIX = 'cc1';
+export const TOKEN_PREFIX = 'ok2r1';
 
 const FNV_OFFSET = 0xcbf29ce484222325n;
 const FNV_PRIME = 0x100000001b3n;

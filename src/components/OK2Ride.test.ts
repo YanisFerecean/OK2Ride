@@ -1,30 +1,30 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CognitiveCaptcha, TAG_NAME } from '../index';
+import { OK2Ride, TAG_NAME } from '../index';
 import type { AssessmentResult, TestStage } from '../types';
 
 const FAKE = ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] as const;
 
-function mount(attrs: Record<string, string> = {}): CognitiveCaptcha {
+function mount(attrs: Record<string, string> = {}): OK2Ride {
   const el = document.createElement(TAG_NAME);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   document.body.append(el);
   return el;
 }
 
-function shadow(el: CognitiveCaptcha): ShadowRoot {
+function shadow(el: OK2Ride): ShadowRoot {
   const root = el.shadowRoot;
   if (!root) throw new Error('no shadow root');
   return root;
 }
 
-function query<T extends Element = HTMLElement>(el: CognitiveCaptcha, selector: string): T {
+function query<T extends Element = HTMLElement>(el: OK2Ride, selector: string): T {
   const found = shadow(el).querySelector<T>(selector);
   if (!found) throw new Error(`missing ${selector}`);
   return found;
 }
 
-function click(el: CognitiveCaptcha, selector: string): void {
+function click(el: OK2Ride, selector: string): void {
   query(el, selector).dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
 }
 
@@ -32,13 +32,13 @@ function activate(target: Element): void {
   target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 }
 
-function stage<T extends TestStage['type']>(el: CognitiveCaptcha, type: T): Extract<TestStage, { type: T }> {
+function stage<T extends TestStage['type']>(el: OK2Ride, type: T): Extract<TestStage, { type: T }> {
   expect(el.stage.type).toBe(type);
   return el.stage as Extract<TestStage, { type: T }>;
 }
 
 /** Start → instructions → first intro → Go. */
-function launch(el: CognitiveCaptcha): void {
+function launch(el: OK2Ride): void {
   click(el, '[data-action="start"]');
   stage(el, 'INSTRUCTION');
   click(el, '[data-action="ready"]');
@@ -47,7 +47,7 @@ function launch(el: CognitiveCaptcha): void {
 }
 
 /** Runs one full PVT trial with the given reaction time, through the result display. */
-function pvtTrial(el: CognitiveCaptcha, rtMs: number): void {
+function pvtTrial(el: OK2Ride, rtMs: number): void {
   const awaiting = stage(el, 'PVT_AWAITING_STIMULUS');
   vi.advanceTimersByTime(awaiting.delayMs);
   vi.advanceTimersByTime(20); // animation frame that reveals the stimulus
@@ -59,7 +59,7 @@ function pvtTrial(el: CognitiveCaptcha, rtMs: number): void {
   vi.advanceTimersByTime(el.config.resultDisplayMs);
 }
 
-describe('<cognitive-captcha>', () => {
+describe('<ok2ride-check>', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: [...FAKE] });
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
@@ -72,7 +72,7 @@ describe('<cognitive-captcha>', () => {
   });
 
   it('registers the custom element and renders the idle screen in a shadow root', () => {
-    expect(customElements.get(TAG_NAME)).toBe(CognitiveCaptcha);
+    expect(customElements.get(TAG_NAME)).toBe(OK2Ride);
     const el = mount();
     expect(el.stage.type).toBe('IDLE');
     expect(shadow(el).querySelector('[data-action="start"]')).not.toBeNull();
@@ -154,7 +154,7 @@ describe('<cognitive-captcha>', () => {
     expect(result.results.map((r) => r.test)).toEqual(['pvt', 'spatial']);
     expect(result.meanRtMs).toBe(260);
     expect(result.nonce).toBe('n-1');
-    expect(result.verificationToken.startsWith('cc1.')).toBe(true);
+    expect(result.verificationToken.startsWith('ok2r1.')).toBe(true);
     expect(stages).toEqual([
       'INSTRUCTION',
       'TEST_INTRO',
