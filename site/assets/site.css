@@ -191,7 +191,7 @@ pre code { background: none; border: 0; padding: 0; font-size: inherit; color: i
 .pool label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
 .pool input { accent-color: var(--accent); }
 
-.log-panel { margin: 8px 0 48px; }
+.log-panel { margin: 8px auto 48px; }
 .log-panel .log-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
 .log {
   margin: 0;
