@@ -33,6 +33,9 @@ if (captcha && log) {
   bind('difficulty', (v) => captcha.setAttribute('difficulty', v));
   bind('timeLimit', (v) => captcha.setAttribute('time-limit-ms', v));
   bind('theme', (v) => captcha.setAttribute('theme', v));
+  // Unlike the other controls this also applies mid-run: the widget re-renders
+  // the mounted screen rather than waiting for the next reset.
+  bind('lang', (v) => captcha.setAttribute('lang', v));
 
   const pool = document.getElementById('pool');
   pool?.addEventListener('change', () => {
