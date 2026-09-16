@@ -31,8 +31,13 @@ reports the outcome through DOM events.
 </script>
 ```
 
-With a bundler, `import 'ok2ride'` registers the element and exposes
-the engine types:
+With a bundler, install it from npm:
+
+```sh
+npm install ok2ride
+```
+
+`import 'ok2ride'` then registers the element and exposes the engine types:
 
 ```ts
 import 'ok2ride';
