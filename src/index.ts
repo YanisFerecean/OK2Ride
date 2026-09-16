@@ -30,7 +30,10 @@ export {
 } from './stateMachine';
 export { TASKS, taskForStage } from './tasks';
 export type { TaskModule, TaskReduction } from './tasks';
-export { TEST_INFO, FAILURE_MESSAGES } from './components/testInfo';
+export { TEST_INFO, FAILURE_MESSAGES, testInfoFor, failureMessagesFor } from './components/testInfo';
+export type { TestInfo } from './components/testInfo';
+export { EN, DE, LOCALES, DEFAULT_STRINGS, resolveStrings } from './components/i18n';
+export type { Strings, TestStrings } from './components/i18n';
 export { buildVerificationToken, decodeVerificationToken, fnv1a64, TOKEN_PREFIX } from './token';
 export type { TokenClaims } from './token';
 

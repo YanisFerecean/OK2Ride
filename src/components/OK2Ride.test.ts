@@ -331,6 +331,49 @@ describe('<ok2ride-check>', () => {
     expect(evaluated.details.results[0]).toMatchObject({ test: 'search', correctCount: 3, errorCount: 0 });
   });
 
+  it('renders German for lang="de", matches regional tags and falls back for unknown ones', () => {
+    expect(query(mount({ lang: 'de' }), 'h1').textContent).toBe('Fahrtauglichkeits-Check');
+    expect(query(mount({ lang: 'de-AT' }), 'h1').textContent).toBe('Fahrtauglichkeits-Check');
+    expect(query(mount({ lang: 'fr' }), 'h1').textContent).toBe('Ride-readiness check');
+    expect(query(mount(), 'h1').textContent).toBe('Ride-readiness check');
+  });
+
+  it('switches language live, rebuilding the mounted screen', () => {
+    const el = mount();
+    expect(query(el, '[data-action="start"]').textContent).toBe('Start check');
+    el.setAttribute('lang', 'de');
+    expect(query(el, '[data-action="start"]').textContent).toBe('Check starten');
+    el.setAttribute('lang', 'en');
+    expect(query(el, '[data-action="start"]').textContent).toBe('Start check');
+  });
+
+  it('inherits the document language when the element sets none', () => {
+    document.documentElement.lang = 'de';
+    try {
+      expect(query(mount(), 'h1').textContent).toBe('Fahrtauglichkeits-Check');
+      // An explicit attribute still wins over the document.
+      expect(query(mount({ lang: 'en' }), 'h1').textContent).toBe('Ride-readiness check');
+    } finally {
+      document.documentElement.lang = '';
+    }
+  });
+
+  it('carries the language through instructions, a running test and its feedback', () => {
+    const el = mount({ lang: 'de', 'stage-pool': 'pvt', 'stage-count': '1', 'max-lapses': '0' });
+    click(el, '[data-action="start"]');
+    expect(query(el, 'h1').textContent).toBe('Ein kurzer Test');
+    expect(shadow(el).querySelector('.steps li')?.textContent).toContain('Reaktion');
+    click(el, '[data-action="ready"]');
+    expect(query(el, '.stage-label').textContent).toBe('Test 1 von 1 · Reaktion');
+    click(el, '[data-action="begin"]');
+    expect(query(el, '.tap-label').textContent).toBe('Warte auf Gelb…');
+
+    vi.advanceTimersByTime(200);
+    activate(query(el, '.tap-area'));
+    expect(query(el, '.feedback').textContent).toBe('Zu früh!');
+    vi.advanceTimersByTime(el.config.resultDisplayMs);
+  });
+
   it('fails with TIME_LIMIT_EXCEEDED when the deadline passes', () => {
     const el = mount({ 'time-limit-ms': '5000', 'stage-pool': 'trail', 'stage-count': '1' });
     let failed: AssessmentResult | null = null;

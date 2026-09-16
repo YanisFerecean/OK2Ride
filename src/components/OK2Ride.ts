@@ -22,9 +22,9 @@ import { parseStagePool, resolveConfig, type ConfigInput } from '../config';
 import { createInitialState, currentTest, isInProgress, newSessionId, reduce, timerEffectFor } from '../stateMachine';
 import type { Action, AssessmentConfig, AssessmentResult, Difficulty, MachineState, TestId, TestStage, Theme, TimerEffect } from '../types';
 import { h, installStyles, setText } from './dom';
+import { DEFAULT_STRINGS, resolveStrings, type Strings } from './i18n';
 import { SCREEN_FACTORIES, SCREEN_FOR_STAGE, type Screen, type ScreenContext, type ScreenKey } from './screens';
 import { STYLES } from './styles';
-import { TEST_INFO } from './testInfo';
 
 export const TAG_NAME = 'ok2ride-check';
 
@@ -39,19 +39,19 @@ export interface OK2RideEventMap {
   'stage-change': CustomEvent<StageChangeDetail>;
 }
 
-const OBSERVED_ATTRIBUTES = ['max-lapses', 'time-limit-ms', 'difficulty', 'theme', 'stage-count', 'stage-pool', 'challenge-nonce'] as const;
+const OBSERVED_ATTRIBUTES = ['max-lapses', 'time-limit-ms', 'difficulty', 'theme', 'stage-count', 'stage-pool', 'challenge-nonce', 'lang'] as const;
 
-function stageLabel(state: MachineState): string {
+function stageLabel(state: MachineState, t: Strings): string {
   switch (state.stage.type) {
     case 'IDLE':
-      return 'Ready';
+      return t.stageReady;
     case 'INSTRUCTION':
-      return 'How it works';
+      return t.stageInstructions;
     case 'EVALUATED':
-      return 'Result';
+      return t.stageResult;
     default: {
       const test = currentTest(state);
-      return test ? `Test ${state.planIndex + 1} of ${state.plan.length} · ${TEST_INFO[test].name}` : '';
+      return test ? t.stageLabel(state.planIndex + 1, state.plan.length, t.tests[test].name) : '';
     }
   }
 }
@@ -78,6 +78,7 @@ export class OK2Ride extends HTMLElement {
   readonly #ctx: ScreenContext;
 
   #state: MachineState;
+  #strings: Strings = DEFAULT_STRINGS;
   #screen: Screen | null = null;
   #screenKey: ScreenKey | null = null;
   #connected = false;
@@ -107,6 +108,9 @@ export class OK2Ride extends HTMLElement {
     this.#ctx = {
       dispatch: (action, now) => this.#dispatch(action, now),
       reset: () => this.reset(),
+      get t() {
+        return self.#strings;
+      },
       get tiltPreferred() {
         return self.#tiltPreferred;
       },
@@ -122,6 +126,7 @@ export class OK2Ride extends HTMLElement {
 
   connectedCallback(): void {
     this.#connected = true;
+    this.#strings = this.#resolveStrings();
     if (this.#state.stage.type === 'IDLE') this.#state = this.#freshState();
     this.#screenKey = null;
     this.#render();
@@ -138,6 +143,16 @@ export class OK2Ride extends HTMLElement {
 
   attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
     if (oldValue === newValue || name === 'theme') return;
+    // Language is not configuration: it may change mid-run and applies at once.
+    // Screens bake their text in when mounted, so the current one is rebuilt.
+    if (name === 'lang') {
+      this.#strings = this.#resolveStrings();
+      if (this.#connected) {
+        this.#screenKey = null;
+        this.#render();
+      }
+      return;
+    }
     // Configuration is frozen during a run; new attribute values apply on the next reset.
     if (this.#state.stage.type === 'IDLE') {
       this.#state = this.#freshState();
@@ -250,6 +265,13 @@ export class OK2Ride extends HTMLElement {
     };
   }
 
+  /** Own `lang` wins; otherwise inherit the document's, then fall back to English. */
+  #resolveStrings(): Strings {
+    const own = this.getAttribute('lang');
+    if (own) return resolveStrings(own);
+    return resolveStrings(typeof document === 'undefined' ? null : document.documentElement.lang);
+  }
+
   #freshState(): MachineState {
     return createInitialState(resolveConfig(this.#attributeConfig()), newSessionId(Math.random), this.getAttribute('challenge-nonce'));
   }
@@ -338,7 +360,7 @@ export class OK2Ride extends HTMLElement {
 
   #render(): void {
     const state = this.#state;
-    setText(this.#stageLabel, stageLabel(state));
+    setText(this.#stageLabel, stageLabel(state, this.#strings));
     const key = SCREEN_FOR_STAGE[state.stage.type];
     // Consecutive intros (one per test) must remount even though the key repeats.
     const remount = key !== this.#screenKey || key === 'intro';

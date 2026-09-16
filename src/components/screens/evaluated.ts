@@ -1,38 +1,38 @@
 import type { AssessmentResult, TestId, TestResult } from '../../types';
-import { formatMs, formatSeconds, h, iconCheck, iconCross, plural } from '../dom';
-import { FAILURE_MESSAGES, TEST_INFO } from '../testInfo';
+import { formatSeconds, h, iconCheck, iconCross } from '../dom';
+import type { Strings } from '../i18n';
 import type { ScreenFactory } from './types';
 
-function summaryFor(r: TestResult): string {
+function summaryFor(r: TestResult, t: Strings): string {
   switch (r.test) {
     case 'pvt':
-      return r.meanRtMs === null ? plural(r.lapseCount, 'lapse') : `mean ${formatMs(r.meanRtMs)}`;
+      return t.summaryPvt(r.meanRtMs, r.lapseCount);
     case 'spatial':
-      return `${r.errorDeg.toFixed(1)}° off target`;
+      return t.summarySpatial(r.errorDeg);
     case 'go-no-go':
-      return `${plural(r.commissionCount, 'false tap')}, ${r.omissionCount} missed`;
+      return t.summaryGoNoGo(r.commissionCount, r.omissionCount);
     case 'trail':
-      return r.completed ? `${formatSeconds(r.durationMs)}, ${plural(r.errorCount, 'error')}` : `${r.reached} of ${r.count} reached`;
+      return t.summaryTrail(r.completed, r.durationMs, r.errorCount, r.reached, r.count);
     case 'sequence': {
       const correct = r.correct ? r.length : r.timedOut ? r.entered.length : Math.max(0, r.entered.length - 1);
-      return `${correct} of ${r.length} tiles`;
+      return t.summarySequence(correct, r.length);
     }
     case 'stroop':
-      return `${r.correctCount} of ${r.trials.length} correct`;
+      return t.summaryStroop(r.correctCount, r.trials.length);
     case 'timing':
-      return r.meanErrorMs === null ? plural(r.missCount, 'miss', 'misses') : `${formatMs(r.meanErrorMs)} off on average`;
+      return t.summaryTiming(r.meanErrorMs, r.missCount);
     case 'search':
-      return `${r.correctCount} of ${r.rounds.length} found`;
+      return t.summarySearch(r.correctCount, r.rounds.length);
   }
 }
 
-function row(test: TestId, result: TestResult | null, status: 'pass' | 'fail' | 'skipped'): HTMLDivElement {
+function row(test: TestId, result: TestResult | null, status: 'pass' | 'fail' | 'skipped', t: Strings): HTMLDivElement {
   const badge = h('span', { class: `badge ${status}`, 'aria-label': status }, status === 'pass' ? iconCheck() : status === 'fail' ? iconCross() : '');
   return h(
     'div',
     { class: `row ${status}` },
     badge,
-    h('div', { class: 'row-body' }, h('div', { class: 'row-name' }, TEST_INFO[test].name), h('div', { class: 'row-detail' }, result ? summaryFor(result) : 'not reached')),
+    h('div', { class: 'row-body' }, h('div', { class: 'row-name' }, t.tests[test].name), h('div', { class: 'row-detail' }, result ? summaryFor(result, t) : t.resultNotReached)),
   );
 }
 
@@ -40,31 +40,28 @@ export const evaluatedScreen: ScreenFactory = (ctx, state) => {
   const stage = state.stage;
   if (stage.type !== 'EVALUATED') return { nodes: [], patch() {} };
   const result: AssessmentResult = stage.details;
+  const { t } = ctx;
 
-  const message = result.passed
-    ? 'You responded quickly and stayed in control.'
-    : result.failureReason
-      ? FAILURE_MESSAGES[result.failureReason]
-      : 'The check could not be completed.';
+  const message = result.passed ? t.resultPassBody : result.failureReason ? t.failures[result.failureReason] : t.resultIncomplete;
 
   const rows = h('div', { class: 'rows' });
   for (const test of result.plan) {
     const r = result.results.find((x) => x.test === test) ?? null;
     const status = r ? (result.failedTest === test && !result.passed ? 'fail' : 'pass') : result.failedTest === test ? 'fail' : 'skipped';
-    rows.append(row(test, r, status));
+    rows.append(row(test, r, status, t));
   }
 
   const nodes: Node[] = [
     h('div', { class: `result-icon ${result.passed ? 'pass' : 'fail'}`, 'aria-hidden': 'true' }, result.passed ? iconCheck() : iconCross()),
-    h('h1', { class: 'center' }, result.passed ? 'Clear to ride' : 'Check not passed'),
+    h('h1', { class: 'center' }, result.passed ? t.resultPass : t.resultFail),
     h('p', { class: 'center', role: 'status' }, message),
     rows,
-    h('div', { class: 'meta' }, h('span', {}, 'Total time'), h('span', {}, formatSeconds(Math.round(result.completionTimeMs / 100) * 100))),
+    h('div', { class: 'meta' }, h('span', {}, t.resultTotalTime), h('span', {}, formatSeconds(Math.round(result.completionTimeMs / 100) * 100))),
     h('div', { class: 'spacer' }),
   ];
 
   if (!result.passed) {
-    const retry = h('button', { type: 'button', class: 'btn btn-secondary', 'data-action': 'reset' }, 'Try again');
+    const retry = h('button', { type: 'button', class: 'btn btn-secondary', 'data-action': 'reset' }, t.resultRetry);
     retry.addEventListener('click', () => ctx.reset());
     nodes.push(retry);
   }

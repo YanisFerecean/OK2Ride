@@ -98,16 +98,6 @@ export function formatMs(ms: number): string {
   return `${Math.round(ms)} ms`;
 }
 
-export function formatAngle(deg: number): string {
-  const rounded = Math.round(deg);
-  if (rounded === 0) return '0°';
-  return `${Math.abs(rounded)}° ${rounded < 0 ? 'left' : 'right'}`;
-}
-
-export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
-}
-
 /* --- icons ------------------------------------------------------------------ */
 
 export function iconCheck(): SVGSVGElement {

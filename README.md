@@ -54,6 +54,7 @@ import type { AssessmentResult } from 'ok2ride';
 | `max-lapses`      | `maxLapses`      | `number` (0–20)                   | `2`        | PVT only: fails once `lapseCount > maxLapses`.               |
 | `time-limit-ms`   | `timeLimitMs`    | `number` (5 000–600 000)          | `90000`    | Overall budget from the instruction acknowledgement.         |
 | `theme`           | `theme`          | `'dark' \| 'light'`               | `'dark'`   | Applied instantly.                                           |
+| `lang`            | `lang`           | BCP-47 tag (`en`, `de`)           | inherited  | UI language. Falls back to the document's `lang`, then English. Applies instantly, even mid-run. |
 | `challenge-nonce` | `challengeNonce` | `string`                          | none       | Echoed in the result and bound into the verification token.  |
 
 Configuration is frozen while a run is in progress; new values apply on the

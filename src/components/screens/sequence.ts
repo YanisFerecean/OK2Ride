@@ -8,14 +8,15 @@ export const sequenceScreen: ScreenFactory = (ctx, state) => {
   const initial = state.stage;
   if (initial.type !== 'SEQUENCE_SHOWING' && initial.type !== 'SEQUENCE_INPUT') return { nodes: [], patch() {} };
   const { config } = state;
+  const { t } = ctx;
   const grid = Math.max(2, Math.round(config.sequenceGridSize));
   const length = initial.sequence.length;
   let latest: SequenceStage = initial;
 
   const tiles: HTMLButtonElement[] = [];
-  const board = h('div', { class: 'tiles', part: 'tiles', role: 'group', 'aria-label': 'Pattern tiles', style: `grid-template-columns: repeat(${grid}, minmax(0, 1fr))` });
+  const board = h('div', { class: 'tiles', part: 'tiles', role: 'group', 'aria-label': t.sequenceBoard, style: `grid-template-columns: repeat(${grid}, minmax(0, 1fr))` });
   for (let i = 0; i < grid * grid; i++) {
-    const tile = h('button', { type: 'button', class: 'tile', 'aria-label': `Tile ${i + 1}` });
+    const tile = h('button', { type: 'button', class: 'tile', 'aria-label': t.sequenceTile(i + 1) });
     onActivate(tile, (tapTime) => ctx.dispatch({ type: 'SEQUENCE_TILE_TAPPED', tile: i, tapTime }, tapTime));
     tiles.push(tile);
     board.append(tile);
@@ -23,7 +24,7 @@ export const sequenceScreen: ScreenFactory = (ctx, state) => {
 
   const title = h('h1', { class: 'sm' });
   const status = h('span');
-  const dots = h('div', { class: 'progress', role: 'img', 'aria-label': 'Tiles entered' });
+  const dots = h('div', { class: 'progress', role: 'img', 'aria-label': t.sequenceEntered });
   for (let i = 0; i < length; i++) dots.append(h('span', { class: 'dot' }));
 
   const { bar, fill, label } = countdownBar();
@@ -46,8 +47,8 @@ export const sequenceScreen: ScreenFactory = (ctx, state) => {
           tile.classList.remove('pressed');
           tile.setAttribute('aria-disabled', 'true');
         });
-        setText(title, 'Watch the pattern…');
-        setText(status, `Showing ${Math.min(stage.step + 1, length)} / ${length}`);
+        setText(title, t.sequenceWatch);
+        setText(status, t.sequenceShowing(Math.min(stage.step + 1, length), length));
         for (let i = 0; i < dots.children.length; i++) dots.children[i]?.classList.remove('filled');
       } else {
         delete board.dataset['locked'];
@@ -57,8 +58,8 @@ export const sequenceScreen: ScreenFactory = (ctx, state) => {
           tile.classList.toggle('pressed', i === last);
           tile.removeAttribute('aria-disabled');
         });
-        setText(title, 'Your turn: repeat the pattern');
-        setText(status, `Entered ${stage.entered.length} / ${length}`);
+        setText(title, t.sequenceYourTurn);
+        setText(status, t.sequenceProgress(stage.entered.length, length));
         for (let i = 0; i < dots.children.length; i++) dots.children[i]?.classList.toggle('filled', i < stage.entered.length);
       }
     },

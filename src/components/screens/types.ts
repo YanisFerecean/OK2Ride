@@ -1,9 +1,12 @@
 import type { Action, MachineState } from '../../types';
+import type { Strings } from '../i18n';
 
 /** What a screen may ask of the host element. */
 export interface ScreenContext {
   dispatch(action: Action, now?: number): void;
   reset(): void;
+  /** Resolved strings for the current language. Screens hold no literals. */
+  readonly t: Strings;
   readonly tiltPreferred: boolean;
   /** Flips the tilt preference, requesting sensor permission when needed. Resolves to the new value. */
   toggleTilt(): Promise<boolean>;

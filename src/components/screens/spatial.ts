@@ -1,5 +1,5 @@
 import type { MachineState, TestStage } from '../../types';
-import { type Attrs, countdownBar, formatAngle, h, runCountdown, s, setText } from '../dom';
+import { type Attrs, countdownBar, h, runCountdown, s, setText } from '../dom';
 import type { ScreenFactory } from './types';
 
 type SpatialStage = Extract<TestStage, { type: 'SPATIAL_MATCHING' }>;
@@ -34,6 +34,7 @@ export const spatialScreen: ScreenFactory = (ctx, state) => {
   const initial = state.stage;
   if (initial.type !== 'SPATIAL_MATCHING') return { nodes: [], patch() {} };
   const { config } = state;
+  const { t } = ctx;
   const tolerance = config.spatialToleranceDeg;
   const maxAngle = config.spatialMaxAngleDeg;
   let latest: SpatialStage = initial;
@@ -67,7 +68,7 @@ export const spatialScreen: ScreenFactory = (ctx, state) => {
       part: 'dial',
       role: 'slider',
       tabindex: '0',
-      'aria-label': 'Handlebar angle',
+      'aria-label': t.spatialDial,
       'aria-valuemin': String(-maxAngle),
       'aria-valuemax': String(maxAngle),
       'aria-valuenow': '0',
@@ -161,14 +162,14 @@ export const spatialScreen: ScreenFactory = (ctx, state) => {
   }));
 
   const nodes: Node[] = [
-    h('div', { class: 'meta' }, h('span', {}, 'Steering'), h('span', {}, `Target ${formatAngle(initial.targetAngle)} · ±${tolerance}°`)),
-    h('h1', { class: 'sm' }, ctx.tiltPreferred ? 'Tilt the phone until the handlebar sits in the green zone, then lock it in' : 'Drag to turn the handlebar into the green zone, then let go'),
+    h('div', { class: 'meta' }, h('span', {}, t.spatialLabel), h('span', {}, t.spatialTarget(t.angle(initial.targetAngle), tolerance))),
+    h('h1', { class: 'sm' }, ctx.tiltPreferred ? t.spatialTiltTitle : t.spatialDragTitle),
     wrap,
     bar,
     label,
   ];
   if (ctx.tiltPreferred) {
-    const lock = h('button', { type: 'button', class: 'btn btn-primary', 'data-action': 'lock-in' }, 'Lock it in');
+    const lock = h('button', { type: 'button', class: 'btn btn-primary', 'data-action': 'lock-in' }, t.spatialLockIn);
     lock.addEventListener('click', () => ctx.dispatch({ type: 'COMPLETE_SPATIAL_STAGE' }));
     nodes.push(lock);
   }
@@ -181,7 +182,7 @@ export const spatialScreen: ScreenFactory = (ctx, state) => {
       latest = stage;
       const angle = stage.currentAngle;
       handle.setAttribute('transform', `rotate(${angle.toFixed(2)})`);
-      setText(readout, formatAngle(angle));
+      setText(readout, t.angle(angle));
       wrap.setAttribute('aria-valuenow', String(Math.round(angle)));
       wrap.classList.toggle('in-zone', Math.abs(angle - stage.targetAngle) <= tolerance);
     },
