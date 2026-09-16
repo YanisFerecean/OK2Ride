@@ -1,6 +1,6 @@
 {
   "name": "ok2ride",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OK2Ride: cognitive capability assessment web component (randomised reaction, steering, go/no-go, trail, memory, Stroop, time-estimation and visual-search tests) for gating micromobility vehicle unlocks.",
   "license": "MIT",
   "type": "module",
