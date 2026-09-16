@@ -17,7 +17,8 @@
       "types": "./dist/types/token.d.ts",
       "import": "./dist/token.js",
       "default": "./dist/token.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
