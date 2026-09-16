@@ -1,9 +1,8 @@
 {
   "name": "ok2ride",
   "version": "0.1.0",
-  "description": "OK2Ride: cognitive capability assessment web component (randomised reaction, steering, go/no-go, trail, memory and Stroop tests) for gating micromobility vehicle unlocks.",
-  "license": "UNLICENSED",
-  "private": true,
+  "description": "OK2Ride: cognitive capability assessment web component (randomised reaction, steering, go/no-go, trail, memory, Stroop, time-estimation and visual-search tests) for gating micromobility vehicle unlocks.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/ok2ride.js",
   "module": "./dist/ok2ride.js",
@@ -37,7 +36,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run test && npm run build && npm run site:build && npm run rent:build"
+    "check": "npm run typecheck && npm run test && npm run build && npm run site:build && npm run rent:build",
+    "prepublishOnly": "npm run check"
   },
   "keywords": [
     "ok2ride",
@@ -53,5 +53,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
-  }
+  },
+  "author": "Yanis-Florian Ferecean"
 }

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>OK2Ride · Ride-readiness check web component</title>
-    <meta name="description" content="A standalone web component that runs a randomised 30-second cognitive check (reaction, steering, go/no-go, number trail, pattern memory, colour match) before a scooter or e-bike unlocks." />
+    <meta name="description" content="A standalone web component that runs a randomised 30-second cognitive check (reaction, steering, go/no-go, number trail, pattern memory, colour match, time sense, odd one out) before a scooter or e-bike unlocks." />
     <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
@@ -26,7 +26,7 @@
           <h1>Prove you're fit to ride. In about thirty seconds.</h1>
           <p class="lead">
             OK2Ride is a standalone web component, <code>&lt;ok2ride-check&gt;</code>, that runs a short, randomised cognitive check before a shared
-            e-scooter or e-bike unlocks. Every run draws tests from a pool of six, measures reactions to the millisecond, and hands your
+            e-scooter or e-bike unlocks. Every run draws tests from a pool of eight, measures reactions to the millisecond, and hands your
             backend a result it can verify.
           </p>
           <div class="actions">
@@ -53,6 +53,8 @@
                 <option value="4">4</option>
                 <option value="5">5</option>
                 <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
               </select>
             </label>
             <label>Difficulty
@@ -79,6 +81,8 @@
             <label><input type="checkbox" value="trail" checked /> Number trail</label>
             <label><input type="checkbox" value="sequence" checked /> Pattern memory</label>
             <label><input type="checkbox" value="stroop" checked /> Colour match</label>
+            <label><input type="checkbox" value="timing" checked /> Time sense</label>
+            <label><input type="checkbox" value="search" checked /> Odd one out</label>
           </div>
           <div><button class="btn" id="reset" type="button">Reset widget</button></div>
         </div>
@@ -95,7 +99,7 @@
       <section class="section" id="tests">
         <div class="container">
           <div class="section-head">
-            <h2>Six tests, drawn at random</h2>
+            <h2>Eight tests, drawn at random</h2>
             <p class="muted">Each run shuffles the pool and presents <code>stage-count</code> tests one after another, with a short intro before each. The run stops at the first failed test. Difficulty tunes tolerances and error allowances; the reaction thresholds never change.</p>
           </div>
           <div class="grid">
@@ -128,6 +132,16 @@
               <h3><span class="chip green">CLR</span> Colour match</h3>
               <p>A colour word appears in a different ink; tap the ink colour, not the word. Measures interference control (Stroop).</p>
               <div class="rule"><strong>Pass</strong> Five rounds with at most one wrong or unanswered on medium.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip blue">TME</span> Time sense</h3>
+              <p>A target interval is named, then nothing on screen counts it down. Tap when you judge it has passed. Measures internal timekeeping, which drifts under fatigue and alcohol.</p>
+              <div class="rule"><strong>Pass</strong> Two rounds judged within ±0.5 s on medium; ±0.7 s on easy, ±0.35 s on hard.</div>
+            </div>
+            <div class="card">
+              <h3><span class="chip red">ODD</span> Odd one out</h3>
+              <p>A field of identical letters hides one confusable different one — a T among Ls, an O among Qs. Find it and tap it before the round runs out. Measures visual search and scanning speed.</p>
+              <div class="rule"><strong>Pass</strong> Three rounds of twelve symbols with at most one wrong or unfound on medium.</div>
             </div>
           </div>
         </div>

@@ -607,6 +607,61 @@ p.note { font-size: 14px; }
 .swatch.blue { background: var(--okr-c-blue); }
 .swatch.yellow { background: var(--okr-c-yellow); }
 
+/* --- time sense ------------------------------------------------------------- */
+
+.tap-area[data-phase="timing"] {
+  border-style: solid;
+  border-color: var(--okr-accent);
+}
+
+.tap-area[data-phase="timing"] .tap-label {
+  font-size: 60px;
+  line-height: 1;
+  color: var(--okr-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tap-area[data-phase="result"][data-outcome="HIT"] { border-color: var(--okr-success); }
+.tap-area[data-phase="result"][data-outcome="MISS"] { border-color: var(--okr-danger); }
+
+/* --- odd one out ------------------------------------------------------------ */
+
+.search-board {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 18px;
+  background: var(--okr-bg);
+  border: 3px solid var(--okr-border);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.search-item {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  padding: 0;
+  border-radius: 14px;
+  border: 3px solid transparent;
+  background: transparent;
+  color: var(--okr-text);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.search-board[data-locked] .search-item { cursor: default; }
+.search-item.found { border-color: var(--okr-success); color: var(--okr-success); }
+.search-item.missed { border-color: var(--okr-danger); color: var(--okr-danger); }
+
 /* --- results ---------------------------------------------------------------- */
 
 .rows { display: flex; flex-direction: column; gap: 8px; }

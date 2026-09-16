@@ -39,6 +39,17 @@ export const TEST_INFO: Readonly<Record<TestId, TestInfo>> = {
     tagline: 'Tap the ink colour, not the word',
     describe: (c) => `A colour word appears written in a different colour. Tap the button matching the colour it is written in, not the word. ${c.stroopTrials} rounds.`,
   },
+  timing: {
+    name: 'Time sense',
+    tagline: 'Tap when the interval has passed',
+    describe: (c) =>
+      `A target time appears, but nothing counts it down. Tap when you judge that much time has passed — within ${formatSeconds(c.timingToleranceMs)} either way. ${c.timingRounds} rounds.`,
+  },
+  search: {
+    name: 'Odd one out',
+    tagline: 'Find the symbol that differs',
+    describe: (c) => `One symbol in the field is different from all the others. Find it and tap it before the round runs out. ${c.searchRounds} rounds.`,
+  },
 };
 
 export const FAILURE_MESSAGES: Readonly<Record<FailureReason, string>> = {
@@ -54,4 +65,6 @@ export const FAILURE_MESSAGES: Readonly<Record<FailureReason, string>> = {
   SEQUENCE_INCORRECT: 'The pattern was not repeated correctly.',
   SEQUENCE_TIMEOUT: 'The pattern was not repeated in time.',
   STROOP_TOO_MANY_ERRORS: 'Too many colours were matched incorrectly.',
+  TIMING_OFF_TARGET: 'Too many intervals were misjudged.',
+  SEARCH_TOO_MANY_ERRORS: 'Too many wrong symbols were tapped.',
 };

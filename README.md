@@ -2,9 +2,9 @@
 
 OK2Ride is a standalone W3C web component, `<ok2ride-check>`, that runs a short cognitive capability check
 before a micromobility vehicle (e-scooter, e-bike) is unlocked. Every run
-draws a random set of tests from a pool of six (reaction, steering, go/no-go,
-number trail, pattern memory, colour match) and reports the outcome through
-DOM events.
+draws a random set of tests from a pool of eight (reaction, steering, go/no-go,
+number trail, pattern memory, colour match, time sense, odd one out) and
+reports the outcome through DOM events.
 
 - Zero runtime dependencies; one ES module (`dist/ok2ride.js`).
 - Shadow DOM: styles and markup are fully encapsulated.
@@ -43,8 +43,8 @@ import type { AssessmentResult } from 'ok2ride';
 
 | Attribute         | Property         | Type                              | Default    | Notes                                                        |
 | ----------------- | ---------------- | --------------------------------- | ---------- | ------------------------------------------------------------ |
-| `stage-count`     | `stageCount`     | `number` (1–6)                    | `2`        | Tests drawn per run, in random order.                        |
-| `stage-pool`      | `stagePool`      | comma-separated test ids          | all six    | Restricts which tests may be drawn (e.g. `pvt,stroop`).      |
+| `stage-count`     | `stageCount`     | `number` (1–8)                    | `2`        | Tests drawn per run, in random order.                        |
+| `stage-pool`      | `stagePool`      | comma-separated test ids          | all eight  | Restricts which tests may be drawn (e.g. `pvt,stroop`).      |
 | `difficulty`      | `difficulty`     | `'easy' \| 'medium' \| 'hard'`    | `'medium'` | Tunes tolerances, windows and error allowances (see below).  |
 | `max-lapses`      | `maxLapses`      | `number` (0–20)                   | `2`        | PVT only: fails once `lapseCount > maxLapses`.               |
 | `time-limit-ms`   | `timeLimitMs`    | `number` (5 000–600 000)          | `90000`    | Overall budget from the instruction acknowledgement.         |
@@ -86,6 +86,8 @@ run fails at the first failed test.
 | `trail`     | Number trail   | Visual scanning, sequencing   | Tap 1–8 in order within 12 s; ≤ 2 wrong taps          |
 | `sequence`  | Pattern memory | Working memory                | Repeat a 4-tile pattern exactly within 8 s            |
 | `stroop`    | Colour match   | Interference control          | 5 rounds; ≤ 1 wrong or unanswered                     |
+| `timing`    | Time sense     | Interval timing               | 2 rounds; ≤ 1 judged outside ±0.5 s                   |
+| `search`    | Odd one out    | Visual search, scanning       | 3 rounds; ≤ 1 wrong or unfound symbol                 |
 
 **Reaction (PVT-B).** After a random foreperiod of 1 500–4 500 ms the panel
 flashes; the rider taps as fast as possible. < 100 ms is a false start
@@ -94,11 +96,11 @@ lapse. Any invalid trial resets the streak. These thresholds never change.
 
 **Difficulty** adjusts the other tests:
 
-| Difficulty | Steering       | Go/Stop false taps | Trail             | Pattern length | Colour errors |
-| ---------- | -------------- | ------------------ | ----------------- | -------------- | ------------- |
-| easy       | ±8°, 4.0 s     | ≤ 1                | 6 numbers, 15 s, ≤ 3 errors | 3     | ≤ 2           |
-| medium     | ±5°, 3.0 s     | ≤ 1                | 8 numbers, 12 s, ≤ 2 errors | 4     | ≤ 1           |
-| hard       | ±3°, 2.5 s     | 0                  | 10 numbers, 11 s, ≤ 1 error | 5     | 0             |
+| Difficulty | Steering       | Go/Stop false taps | Trail             | Pattern length | Colour errors | Time sense        | Odd one out     |
+| ---------- | -------------- | ------------------ | ----------------- | -------------- | ------------- | ----------------- | --------------- |
+| easy       | ±8°, 4.0 s     | ≤ 1                | 6 numbers, 15 s, ≤ 3 errors | 3     | ≤ 2           | ±0.7 s, ≤ 1 miss  | 9 symbols, ≤ 2  |
+| medium     | ±5°, 3.0 s     | ≤ 1                | 8 numbers, 12 s, ≤ 2 errors | 4     | ≤ 1           | ±0.5 s, ≤ 1 miss  | 12 symbols, ≤ 1 |
+| hard       | ±3°, 2.5 s     | 0                  | 10 numbers, 11 s, ≤ 1 error | 5     | 0             | ±0.35 s, 0 misses | 16 symbols, 0   |
 
 Every parameter is exposed on `AssessmentConfig` for hosts that replay or
 audit runs.
@@ -146,7 +148,7 @@ Adding a test means one module in `tasks/`, one screen in
 
 The `site/` directory holds the project website: a landing page with the live
 widget and the full documentation (installation, configuration, events and
-result payload, the six tests, run flow and timing, server verification,
+result payload, the eight tests, run flow and timing, server verification,
 theming, accessibility, engine API). It is a static Vite multi-page build with
 a relative base, so the output can be hosted from any path.
 

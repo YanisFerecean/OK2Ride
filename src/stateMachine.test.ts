@@ -530,6 +530,125 @@ describe('reduce: stroop', () => {
 });
 
 /* ------------------------------------------------------------------------ */
+/* Timing                                                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Runs one timing round, tapping `offsetMs` away from the target (negative = early). */
+function timingRound(state: MachineState, offsetMs: number): MachineState {
+  const running = expectStage(state, 'TIMING_RUNNING');
+  const tapTime = running.startTime + running.targetMs + offsetMs;
+  const s = reduce(state, { type: 'TARGET_TAPPED', tapTime }, env(tapTime));
+  expectStage(s, 'TIMING_RESULT_DISPLAY');
+  return reduce(s, { type: 'ADVANCE' }, env(tapTime + state.config.timingResultDisplayMs));
+}
+
+describe('reduce: timing', () => {
+  const config = configFor(['timing']);
+
+  it('names a target inside the configured range and waits for the tap alone', () => {
+    const s = begin(config);
+    const running = expectStage(s, 'TIMING_RUNNING');
+    expect(running.roundIndex).toBe(0);
+    expect(running.targetMs).toBe(3_500); // random = 0.5 → midpoint of 2500..4500
+    expect(running.targetMs).toBeGreaterThanOrEqual(config.timingMinTargetMs);
+    expect(running.targetMs).toBeLessThanOrEqual(config.timingMaxTargetMs);
+    // The only timer is the abandon deadline, well past the target.
+    expect(timerEffectFor(s, 1_000)).toEqual({ action: { type: 'STAGE_TIMEOUT' }, delayMs: 3_500 + config.timingGraceMs });
+  });
+
+  it('scores the signed error and passes when every round is within tolerance', () => {
+    const early = timingRound(begin(config), -100);
+    const shown = expectStage(reduce(begin(config), { type: 'TARGET_TAPPED', tapTime: 1_000 + 3_500 - 100 }, env(1_000 + 3_400)), 'TIMING_RESULT_DISPLAY');
+    expect(shown).toMatchObject({ errorMs: -100, withinTolerance: true, timedOut: false });
+
+    const evaluated = expectStage(timingRound(early, 120), 'EVALUATED');
+    expect(evaluated.passed).toBe(true);
+    expect(evaluated.details.results[0]).toMatchObject({ test: 'timing', missCount: 0, toleranceMs: config.timingToleranceMs, meanErrorMs: 110 });
+    // Interval judgements are not reaction times, so they stay out of the RT aggregate.
+    expect(evaluated.details.meanRtMs).toBeNull();
+  });
+
+  it('counts a round outside the tolerance as a miss and fails past the allowance', () => {
+    const one = timingRound(begin(config), 900);
+    expect(expectStage(one, 'TIMING_RUNNING').progress.rounds[0]).toMatchObject({ errorMs: 900, withinTolerance: false });
+    const evaluated = expectStage(timingRound(one, 900), 'EVALUATED');
+    expect(evaluated.passed).toBe(false);
+    expect(evaluated.details).toMatchObject({ failureReason: 'TIMING_OFF_TARGET', failedTest: 'timing' });
+    expect(evaluated.details.results[0]).toMatchObject({ missCount: 2 });
+  });
+
+  it('records an untapped round as a timed-out miss', () => {
+    const s = reduce(begin(config), { type: 'STAGE_TIMEOUT' }, env(1_000 + 3_500 + config.timingGraceMs));
+    const shown = expectStage(s, 'TIMING_RESULT_DISPLAY');
+    expect(shown).toMatchObject({ timedOut: true, withinTolerance: false, errorMs: config.timingGraceMs });
+    expect(shown.progress.rounds[0]).toMatchObject({ elapsedMs: null, timedOut: true });
+  });
+});
+
+/* ------------------------------------------------------------------------ */
+/* Search                                                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Runs one search round, tapping either the odd symbol or a distractor. */
+function searchRound(state: MachineState, correct: boolean, rtMs = 900): MachineState {
+  const active = expectStage(state, 'SEARCH_ACTIVE');
+  const picked = active.items.find((item) => item.isTarget === correct);
+  const s = reduce(state, { type: 'SEARCH_TAPPED', index: picked?.index ?? 0, tapTime: active.startTime + rtMs }, env(active.startTime + rtMs));
+  expect(expectStage(s, 'SEARCH_RESULT_DISPLAY').correct).toBe(correct);
+  return reduce(s, { type: 'ADVANCE' }, env(active.startTime + rtMs + state.config.searchResultDisplayMs));
+}
+
+describe('reduce: search', () => {
+  const config = configFor(['search']);
+
+  it('hides exactly one odd symbol in a field of identical ones', () => {
+    const s = begin(config);
+    const active = expectStage(s, 'SEARCH_ACTIVE');
+    expect(active.items).toHaveLength(config.searchItemCount);
+    expect(active.targetGlyph).not.toBe(active.distractorGlyph);
+    expect(active.items.filter((i) => i.isTarget)).toHaveLength(1);
+    for (const item of active.items) {
+      expect(item.glyph).toBe(item.isTarget ? active.targetGlyph : active.distractorGlyph);
+      expect(item.x).toBeGreaterThanOrEqual(10);
+      expect(item.x).toBeLessThanOrEqual(90);
+      expect(item.y).toBeGreaterThanOrEqual(10);
+      expect(item.y).toBeLessThanOrEqual(90);
+    }
+    expect(new Set(active.items.map((i) => `${i.x},${i.y}`)).size).toBe(config.searchItemCount);
+    expect(timerEffectFor(s, 1_000)).toEqual({ action: { type: 'STAGE_TIMEOUT' }, delayMs: config.searchRoundTimeoutMs });
+    expect(reduce(s, { type: 'SEARCH_TAPPED', index: 99, tapTime: 1_100 }, env(1_100))).toBe(s); // unknown symbol
+  });
+
+  it('passes when the odd symbol is found every round, and counts those finds as reaction times', () => {
+    let s = begin(config);
+    for (let i = 0; i < config.searchRounds; i++) s = searchRound(s, true, 800 + i * 100);
+    const evaluated = expectStage(s, 'EVALUATED');
+    expect(evaluated.passed).toBe(true);
+    expect(evaluated.details.results[0]).toMatchObject({ test: 'search', correctCount: config.searchRounds, errorCount: 0, meanRtMs: 900 });
+    expect(evaluated.details.meanRtMs).toBe(900);
+  });
+
+  it('tolerates one wrong tap on medium and fails on the second', () => {
+    let s = searchRound(begin(config), false);
+    for (let i = 0; i < config.searchRounds - 1; i++) s = searchRound(s, true);
+    expect(expectStage(s, 'EVALUATED')).toMatchObject({ passed: true });
+
+    let t = searchRound(searchRound(begin(config), false), false);
+    for (let i = 0; i < config.searchRounds - 2; i++) t = searchRound(t, true);
+    const evaluated = expectStage(t, 'EVALUATED');
+    expect(evaluated.passed).toBe(false);
+    expect(evaluated.details).toMatchObject({ failureReason: 'SEARCH_TOO_MANY_ERRORS', failedTest: 'search' });
+    expect(evaluated.details.results[0]).toMatchObject({ errorCount: 2 });
+  });
+
+  it('counts an unfound round as an error with no RT', () => {
+    const s = reduce(begin(config), { type: 'STAGE_TIMEOUT' }, env(1_000 + config.searchRoundTimeoutMs));
+    const shown = expectStage(s, 'SEARCH_RESULT_DISPLAY');
+    expect(shown).toMatchObject({ correct: false, rtMs: null, timedOut: true });
+  });
+});
+
+/* ------------------------------------------------------------------------ */
 /* Time limit, multi-test flow, token                                        */
 /* ------------------------------------------------------------------------ */
 

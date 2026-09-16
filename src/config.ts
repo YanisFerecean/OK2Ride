@@ -9,7 +9,11 @@ type PresetKeys =
   | 'trailWindowMs'
   | 'trailMaxErrors'
   | 'sequenceLength'
-  | 'stroopMaxErrors';
+  | 'stroopMaxErrors'
+  | 'timingToleranceMs'
+  | 'timingMaxMisses'
+  | 'searchItemCount'
+  | 'searchMaxErrors';
 
 /**
  * Parameters shared by every difficulty level. The PVT thresholds follow the
@@ -52,6 +56,17 @@ export const BASE_CONFIG: Omit<AssessmentConfig, 'difficulty' | PresetKeys> = {
   stroopTrials: 5,
   stroopTrialTimeoutMs: 3_000,
   stroopResultDisplayMs: 450,
+
+  timingRounds: 2,
+  timingMinTargetMs: 2_500,
+  timingMaxTargetMs: 4_500,
+  timingGraceMs: 3_000,
+  timingResultDisplayMs: 900,
+
+  searchRounds: 3,
+  searchGridSize: 4,
+  searchRoundTimeoutMs: 6_000,
+  searchResultDisplayMs: 500,
 };
 
 /**
@@ -68,6 +83,10 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, Pick<AssessmentConfig, Prese
     trailMaxErrors: 3,
     sequenceLength: 3,
     stroopMaxErrors: 2,
+    timingToleranceMs: 700,
+    timingMaxMisses: 1,
+    searchItemCount: 9,
+    searchMaxErrors: 2,
   },
   medium: {
     spatialToleranceDeg: 5,
@@ -78,6 +97,10 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, Pick<AssessmentConfig, Prese
     trailMaxErrors: 2,
     sequenceLength: 4,
     stroopMaxErrors: 1,
+    timingToleranceMs: 500,
+    timingMaxMisses: 1,
+    searchItemCount: 12,
+    searchMaxErrors: 1,
   },
   hard: {
     spatialToleranceDeg: 3,
@@ -88,6 +111,10 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, Pick<AssessmentConfig, Prese
     trailMaxErrors: 1,
     sequenceLength: 5,
     stroopMaxErrors: 0,
+    timingToleranceMs: 350,
+    timingMaxMisses: 0,
+    searchItemCount: 16,
+    searchMaxErrors: 0,
   },
 };
 

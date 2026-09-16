@@ -19,6 +19,10 @@ function summaryFor(r: TestResult): string {
     }
     case 'stroop':
       return `${r.correctCount} of ${r.trials.length} correct`;
+    case 'timing':
+      return r.meanErrorMs === null ? plural(r.missCount, 'miss', 'misses') : `${formatMs(r.meanErrorMs)} off on average`;
+    case 'search':
+      return `${r.correctCount} of ${r.rounds.length} found`;
   }
 }
 

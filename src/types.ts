@@ -25,10 +25,12 @@ export const THEMES: readonly Theme[] = ['dark', 'light'];
  * - `trail`     Trail making: tap scattered numbers in ascending order.
  * - `sequence`  Working memory: repeat a lit-tile pattern.
  * - `stroop`    Interference control: name the ink colour, not the word.
+ * - `timing`    Time estimation: tap when the named interval has passed.
+ * - `search`    Visual search: find the one symbol that differs.
  */
-export type TestId = 'pvt' | 'spatial' | 'go-no-go' | 'trail' | 'sequence' | 'stroop';
+export type TestId = 'pvt' | 'spatial' | 'go-no-go' | 'trail' | 'sequence' | 'stroop' | 'timing' | 'search';
 
-export const TEST_IDS: readonly TestId[] = ['pvt', 'spatial', 'go-no-go', 'trail', 'sequence', 'stroop'];
+export const TEST_IDS: readonly TestId[] = ['pvt', 'spatial', 'go-no-go', 'trail', 'sequence', 'stroop', 'timing', 'search'];
 
 export function isTestId(value: unknown): value is TestId {
   return typeof value === 'string' && (TEST_IDS as readonly string[]).includes(value);
@@ -111,6 +113,26 @@ export interface AssessmentConfig {
   readonly stroopMaxErrors: number;
   readonly stroopTrialTimeoutMs: number;
   readonly stroopResultDisplayMs: number;
+
+  /* --- timing --------------------------------------------------------------- */
+  readonly timingRounds: number;
+  readonly timingMinTargetMs: number;
+  readonly timingMaxTargetMs: number;
+  /** Absolute error tolerated before a round counts as a miss. */
+  readonly timingToleranceMs: number;
+  /** Extra time past the target before an untapped round is abandoned. */
+  readonly timingGraceMs: number;
+  readonly timingMaxMisses: number;
+  readonly timingResultDisplayMs: number;
+
+  /* --- search --------------------------------------------------------------- */
+  readonly searchRounds: number;
+  readonly searchGridSize: number;
+  /** Symbols in the field, including the odd one. Capped at the grid's cell count. */
+  readonly searchItemCount: number;
+  readonly searchRoundTimeoutMs: number;
+  readonly searchMaxErrors: number;
+  readonly searchResultDisplayMs: number;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -257,7 +279,69 @@ export interface StroopResult {
   readonly durationMs: number;
 }
 
-export type TestResult = PvtResult | SpatialResult | GoNoGoResult | TrailResult | SequenceResult | StroopResult;
+/* timing */
+
+export interface TimingRound {
+  readonly index: number;
+  readonly targetMs: number;
+  /** Elapsed time at the tap; null when the round ran out with no tap. */
+  readonly elapsedMs: number | null;
+  /** Signed error against the target: positive is late, negative is early. */
+  readonly errorMs: number;
+  readonly withinTolerance: boolean;
+  readonly timedOut: boolean;
+}
+
+export interface TimingProgress {
+  readonly rounds: readonly TimingRound[];
+  readonly startTime: number;
+}
+
+export interface TimingResult {
+  readonly test: 'timing';
+  readonly rounds: readonly TimingRound[];
+  /** Rounds outside the tolerance, including those that timed out. */
+  readonly missCount: number;
+  readonly toleranceMs: number;
+  /** Mean absolute error over the rounds that were tapped. */
+  readonly meanErrorMs: number | null;
+  readonly durationMs: number;
+}
+
+/* search */
+
+export interface SearchItem {
+  readonly index: number;
+  readonly glyph: string;
+  /** Horizontal position as a percentage of the board width. */
+  readonly x: number;
+  /** Vertical position as a percentage of the board height. */
+  readonly y: number;
+  readonly isTarget: boolean;
+}
+
+export interface SearchRound {
+  readonly index: number;
+  readonly rtMs: number | null;
+  readonly correct: boolean;
+  readonly timedOut: boolean;
+}
+
+export interface SearchProgress {
+  readonly rounds: readonly SearchRound[];
+  readonly startTime: number;
+}
+
+export interface SearchResult {
+  readonly test: 'search';
+  readonly rounds: readonly SearchRound[];
+  readonly correctCount: number;
+  readonly errorCount: number;
+  readonly meanRtMs: number | null;
+  readonly durationMs: number;
+}
+
+export type TestResult = PvtResult | SpatialResult | GoNoGoResult | TrailResult | SequenceResult | StroopResult | TimingResult | SearchResult;
 
 export type FailureReason =
   | 'TOO_MANY_LAPSES'
@@ -271,7 +355,9 @@ export type FailureReason =
   | 'TRAIL_TIMEOUT'
   | 'SEQUENCE_INCORRECT'
   | 'SEQUENCE_TIMEOUT'
-  | 'STROOP_TOO_MANY_ERRORS';
+  | 'STROOP_TOO_MANY_ERRORS'
+  | 'TIMING_OFF_TARGET'
+  | 'SEARCH_TOO_MANY_ERRORS';
 
 /* ------------------------------------------------------------------------ */
 /* Result payload (dispatched with `capability-passed` / `capability-failed`) */
@@ -294,7 +380,7 @@ export interface AssessmentResult {
   readonly plan: readonly TestId[];
   /** Per-test results, in presentation order (only tests that ran). */
   readonly results: readonly TestResult[];
-  /** Mean of every reaction time recorded (PVT responses, GO hits, Stroop answers). */
+  /** Mean of every reaction time recorded (PVT responses, GO hits, Stroop answers, odd-one-out finds). */
   readonly meanRtMs: number | null;
   readonly medianRtMs: number | null;
   readonly fastestRtMs: number | null;
@@ -337,6 +423,18 @@ export type TestStage =
   | { type: 'SEQUENCE_INPUT'; sequence: readonly number[]; entered: readonly number[]; startTime: number; inputStartTime: number }
   | { type: 'STROOP_TRIAL'; trialIndex: number; word: StroopColor; ink: StroopColor; congruent: boolean; startTime: number; progress: StroopProgress }
   | { type: 'STROOP_RESULT_DISPLAY'; correct: boolean; rtMs: number | null; progress: StroopProgress }
+  | { type: 'TIMING_RUNNING'; roundIndex: number; targetMs: number; startTime: number; progress: TimingProgress }
+  | { type: 'TIMING_RESULT_DISPLAY'; errorMs: number; withinTolerance: boolean; timedOut: boolean; progress: TimingProgress }
+  | {
+      type: 'SEARCH_ACTIVE';
+      roundIndex: number;
+      items: readonly SearchItem[];
+      targetGlyph: string;
+      distractorGlyph: string;
+      startTime: number;
+      progress: SearchProgress;
+    }
+  | { type: 'SEARCH_RESULT_DISPLAY'; correct: boolean; rtMs: number | null; timedOut: boolean; progress: SearchProgress }
   | { type: 'EVALUATED'; passed: boolean; details: AssessmentResult };
 
 export type StageType = TestStage['type'];
@@ -358,6 +456,7 @@ export type Action =
   | { type: 'TRAIL_TAPPED'; value: number; tapTime: number }
   | { type: 'SEQUENCE_TILE_TAPPED'; tile: number; tapTime: number }
   | { type: 'STROOP_ANSWERED'; color: StroopColor; tapTime: number }
+  | { type: 'SEARCH_TAPPED'; index: number; tapTime: number }
   | { type: 'STAGE_TIMEOUT' }
   | { type: 'TIME_LIMIT_REACHED' }
   | {

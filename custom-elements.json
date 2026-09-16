@@ -28,7 +28,7 @@
               "type": {
                 "text": "string"
               },
-              "description": "Comma-separated test ids eligible for selection: pvt, spatial, go-no-go, trail, sequence, stroop. Empty = all."
+              "description": "Comma-separated test ids eligible for selection: pvt, spatial, go-no-go, trail, sequence, stroop, timing, search. Empty = all."
             },
             {
               "name": "max-lapses",

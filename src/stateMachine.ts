@@ -187,6 +187,8 @@ export function collectReactionTimes(results: readonly TestResult[]): number[] {
       for (const t of r.trials) if (t.outcome === 'HIT' && t.rtMs !== null) rts.push(t.rtMs);
     } else if (r.test === 'stroop') {
       for (const t of r.trials) if (t.correct && t.rtMs !== null) rts.push(t.rtMs);
+    } else if (r.test === 'search') {
+      for (const round of r.rounds) if (round.correct && round.rtMs !== null) rts.push(round.rtMs);
     }
   }
   return rts;

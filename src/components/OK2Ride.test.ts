@@ -98,7 +98,7 @@ describe('<ok2ride-check>', () => {
     expect(el.config.difficulty).toBe('easy');
     expect(el.maxLapses).toBe(20); // clamped
     expect(el.timeLimitMs).toBe(90_000); // fallback
-    expect(el.stagePool).toHaveLength(6);
+    expect(el.stagePool).toHaveLength(8);
     expect(el.hasAttribute('stage-pool')).toBe(false);
   });
 
@@ -288,6 +288,47 @@ describe('<ok2ride-check>', () => {
     const evaluated = stage(el, 'EVALUATED');
     expect(evaluated.passed).toBe(true);
     expect(evaluated.details.results[0]).toMatchObject({ test: 'stroop', correctCount: 5, errorCount: 0 });
+  });
+
+  it('runs time sense: the interval is judged with nothing counting it down', () => {
+    const el = mount({ 'stage-pool': 'timing', 'stage-count': '1' });
+    launch(el);
+    expect(shadow(el).querySelector('.countdown')).toBeNull(); // no clock to read off
+    for (let round = 0; round < el.config.timingRounds; round++) {
+      const running = stage(el, 'TIMING_RUNNING');
+      expect(query(el, '.tap-area').dataset['phase']).toBe('timing');
+      vi.advanceTimersByTime(running.targetMs - (performance.now() - running.startTime) - 100);
+      activate(query(el, '.tap-area'));
+      const shown = stage(el, 'TIMING_RESULT_DISPLAY');
+      expect(shown.withinTolerance).toBe(true);
+      expect(query(el, '.tap-area').dataset['outcome']).toBe('HIT');
+      expect(query(el, '.feedback').textContent).toMatch(/^\d+ ms (early|late)$/);
+      vi.advanceTimersByTime(el.config.timingResultDisplayMs);
+    }
+    const evaluated = stage(el, 'EVALUATED');
+    expect(evaluated.passed).toBe(true);
+    expect(evaluated.details.results[0]).toMatchObject({ test: 'timing', missCount: 0 });
+  });
+
+  it('runs odd one out: a fresh field each round, the different symbol is the answer', () => {
+    const el = mount({ 'stage-pool': 'search', 'stage-count': '1' });
+    launch(el);
+    for (let round = 0; round < el.config.searchRounds; round++) {
+      const active = stage(el, 'SEARCH_ACTIVE');
+      const items = shadow(el).querySelectorAll<HTMLButtonElement>('.search-item');
+      expect(items).toHaveLength(el.config.searchItemCount);
+      expect(new Set([...items].map((n) => n.textContent)).size).toBe(2); // distractors plus the odd one
+      const target = active.items.find((i) => i.isTarget);
+      vi.advanceTimersByTime(700);
+      activate(items[target?.index ?? 0] as Element);
+      stage(el, 'SEARCH_RESULT_DISPLAY');
+      expect(query(el, '.feedback').textContent).toMatch(/^Found · \d+ ms$/);
+      expect(query(el, '.search-board').hasAttribute('data-locked')).toBe(true);
+      vi.advanceTimersByTime(el.config.searchResultDisplayMs);
+    }
+    const evaluated = stage(el, 'EVALUATED');
+    expect(evaluated.passed).toBe(true);
+    expect(evaluated.details.results[0]).toMatchObject({ test: 'search', correctCount: 3, errorCount: 0 });
   });
 
   it('fails with TIME_LIMIT_EXCEEDED when the deadline passes', () => {
