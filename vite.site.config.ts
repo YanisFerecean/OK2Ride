@@ -1,6 +1,20 @@
-import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 
 const page = (name: string): string => decodeURIComponent(new URL(`site/${name}`, import.meta.url).pathname);
+
+const pkgVersion = (JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
+/**
+ * Replaces `{{PKG_VERSION}}` in the pages with the version from package.json,
+ * so the install snippet can never drift from what is actually published.
+ */
+function injectVersion(): Plugin {
+  return {
+    name: 'inject-pkg-version',
+    transformIndexHtml: (html) => html.replaceAll('{{PKG_VERSION}}', pkgVersion),
+  };
+}
 
 /**
  * Website build: landing page with the live widget plus the documentation.
@@ -11,6 +25,7 @@ export default defineConfig({
   root: 'site',
   base: './',
   publicDir: false,
+  plugins: [injectVersion()],
   build: {
     outDir: '../dist-site',
     emptyOutDir: true,
