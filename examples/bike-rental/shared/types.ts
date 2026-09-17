@@ -116,6 +116,7 @@ export type ApiErrorCode =
   | 'BIKE_MISMATCH'
   | 'TOKEN_STALE'
   | 'NOT_ENOUGH_TESTS'
+  | 'NOT_HUMAN'
   | 'IMPLAUSIBLE_TIMING'
   | 'INTERNAL';
 

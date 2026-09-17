@@ -17,7 +17,7 @@ beforeEach(() => {
 /** A widget token as the browser would produce it, issued "now". */
 function token(nonce: string | null, overrides: Partial<TokenClaims> = {}): string {
   return buildVerificationToken({
-    v: 1,
+    v: 2,
     sid: 'session',
     nonce,
     ok: true,
@@ -28,6 +28,8 @@ function token(nonce: string | null, overrides: Partial<TokenClaims> = {}): stri
     fs: 0,
     se: 2,
     pl: 'pvt,spatial,stroop',
+    hv: 'human',
+    hs: 1,
     ...overrides,
   });
 }
@@ -175,6 +177,14 @@ describe('starting a rental', () => {
       clock += 25_000;
       expectCode(store.startRental(RIDER, 'b201', token(c.nonce, { pl: 'pvt,stroop' })), 'NOT_ENOUGH_TESTS', 403);
       expectCode(store.startRental(RIDER, 'b201', token(c.nonce, { pl: 'pvt,pvt,pvt' })), 'NOT_ENOUGH_TESTS', 403);
+    });
+
+    it('admits the check was automated, which only a tampered token can do', () => {
+      const c = challenge();
+      clock += 25_000;
+      expectCode(store.startRental(RIDER, 'b101', token(c.nonce, { hv: 'automated', hs: 0 })), 'NOT_HUMAN', 403);
+      // A run the widget merely found odd is still the rider's to take.
+      expect(store.startRental(RIDER, 'b101', token(c.nonce, { hv: 'suspect', hs: 0.5 })).ok).toBe(true);
     });
 
     it('arrives after the challenge expired', () => {

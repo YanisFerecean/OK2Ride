@@ -339,6 +339,7 @@ export const EN: Strings = {
     STROOP_TOO_MANY_ERRORS: 'Too many colours were matched incorrectly.',
     TIMING_OFF_TARGET: 'Too many intervals were misjudged.',
     SEARCH_TOO_MANY_ERRORS: 'Too many wrong symbols were tapped.',
+    HUMAN_CHECK_FAILED: 'The responses did not look like they came from a person.',
   },
 };
 
@@ -531,6 +532,7 @@ export const DE: Strings = {
     STROOP_TOO_MANY_ERRORS: 'Zu viele Farben wurden falsch zugeordnet.',
     TIMING_OFF_TARGET: 'Zu viele Intervalle wurden falsch eingeschätzt.',
     SEARCH_TOO_MANY_ERRORS: 'Zu oft das falsche Symbol angetippt.',
+    HUMAN_CHECK_FAILED: 'Die Eingaben wirkten nicht wie von einer Person.',
   },
 };
 

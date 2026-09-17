@@ -1,5 +1,5 @@
-import type { AssessmentConfig, Difficulty, TestId } from './types';
-import { DIFFICULTIES, TEST_IDS, isTestId } from './types';
+import type { AssessmentConfig, Difficulty, HumanCheckMode, TestId } from './types';
+import { DIFFICULTIES, HUMAN_CHECK_MODES, TEST_IDS, isTestId } from './types';
 
 type PresetKeys =
   | 'spatialToleranceDeg'
@@ -24,6 +24,7 @@ export const BASE_CONFIG: Omit<AssessmentConfig, 'difficulty' | PresetKeys> = {
   timeLimitMs: 90_000,
   stageCount: 2,
   stagePool: TEST_IDS,
+  humanCheck: 'strict',
 
   requiredValidTrials: 3,
   minDelayMs: 1_500,
@@ -126,6 +127,8 @@ export const LIMITS = {
   stageCount: { min: 1, max: TEST_IDS.length },
 } as const;
 
+export const DEFAULT_HUMAN_CHECK: HumanCheckMode = 'strict';
+
 /** Raw, unvalidated values as they arrive from attributes or properties. */
 export interface ConfigInput {
   readonly maxLapses?: number | string | null | undefined;
@@ -134,10 +137,15 @@ export interface ConfigInput {
   readonly stageCount?: number | string | null | undefined;
   /** Comma-separated string or array of test ids. Unknown ids are ignored. */
   readonly stagePool?: string | readonly string[] | null | undefined;
+  readonly humanCheck?: string | null | undefined;
 }
 
 export function isDifficulty(value: unknown): value is Difficulty {
   return typeof value === 'string' && (DIFFICULTIES as readonly string[]).includes(value);
+}
+
+export function isHumanCheckMode(value: unknown): value is HumanCheckMode {
+  return typeof value === 'string' && (HUMAN_CHECK_MODES as readonly string[]).includes(value);
 }
 
 function clampInt(raw: number | string | null | undefined, min: number, max: number, fallback: number): number {
@@ -171,5 +179,6 @@ export function resolveConfig(input: ConfigInput = {}): AssessmentConfig {
     timeLimitMs: clampInt(input.timeLimitMs, LIMITS.timeLimitMs.min, LIMITS.timeLimitMs.max, BASE_CONFIG.timeLimitMs),
     stageCount: clampInt(input.stageCount, LIMITS.stageCount.min, LIMITS.stageCount.max, BASE_CONFIG.stageCount),
     stagePool: pool.length ? pool : TEST_IDS,
+    humanCheck: isHumanCheckMode(input.humanCheck) ? input.humanCheck : DEFAULT_HUMAN_CHECK,
   };
 }

@@ -10,6 +10,7 @@
  *   theme            'dark' | 'light' (default 'dark')
  *   stage-count      number   tests drawn per run (default 2)
  *   stage-pool       comma-separated test ids eligible for selection (default: all)
+ *   human-check      'strict' | 'lenient' | 'off' humanity gating (default 'strict')
  *   challenge-nonce  optional host-supplied string bound into the token
  *
  * Events (bubbling, composed)
@@ -19,9 +20,22 @@
  */
 
 import { parseStagePool, resolveConfig, type ConfigInput } from '../config';
-import { createInitialState, currentTest, isInProgress, newSessionId, reduce, timerEffectFor } from '../stateMachine';
-import type { Action, AssessmentConfig, AssessmentResult, Difficulty, MachineState, TestId, TestStage, Theme, TimerEffect } from '../types';
+import { createInitialState, currentTest, humanityOf, isInProgress, newSessionId, reduce, timerEffectFor } from '../stateMachine';
+import type {
+  Action,
+  AssessmentConfig,
+  AssessmentResult,
+  Difficulty,
+  HumanCheckMode,
+  HumanityReport,
+  MachineState,
+  TestId,
+  TestStage,
+  Theme,
+  TimerEffect,
+} from '../types';
 import { h, installStyles, setText } from './dom';
+import { automationDetected, createInputMonitor, type InputMonitor } from './input';
 import { DEFAULT_STRINGS, resolveStrings, type Strings } from './i18n';
 import { SCREEN_FACTORIES, SCREEN_FOR_STAGE, type Screen, type ScreenContext, type ScreenKey } from './screens';
 import { STYLES } from './styles';
@@ -39,7 +53,7 @@ export interface OK2RideEventMap {
   'stage-change': CustomEvent<StageChangeDetail>;
 }
 
-const OBSERVED_ATTRIBUTES = ['max-lapses', 'time-limit-ms', 'difficulty', 'theme', 'stage-count', 'stage-pool', 'challenge-nonce', 'lang'] as const;
+const OBSERVED_ATTRIBUTES = ['max-lapses', 'time-limit-ms', 'difficulty', 'theme', 'stage-count', 'stage-pool', 'human-check', 'challenge-nonce', 'lang'] as const;
 
 function stageLabel(state: MachineState, t: Strings): string {
   switch (state.stage.type) {
@@ -76,6 +90,7 @@ export class OK2Ride extends HTMLElement {
   readonly #screenHost: HTMLDivElement;
   readonly #stageLabel: HTMLSpanElement;
   readonly #ctx: ScreenContext;
+  readonly #inputs: InputMonitor;
 
   #state: MachineState;
   #strings: Strings = DEFAULT_STRINGS;
@@ -87,6 +102,10 @@ export class OK2Ride extends HTMLElement {
   #stimulusFrame: number | null = null;
   #deadlineTimer: number | null = null;
   #tiltPreferred = false;
+
+  /** Identifies the current stage occurrence, and when it began, for input evidence. */
+  #stageSeq = 0;
+  #stageEnteredAt = 0;
 
   constructor() {
     super();
@@ -117,6 +136,14 @@ export class OK2Ride extends HTMLElement {
       toggleTilt: () => this.#toggleTilt(),
     };
 
+    // Subscribed before any host script can reach the shadow root, so nothing
+    // can register a capture listener in front of the evidence collector.
+    this.#inputs = createInputMonitor({
+      root: this.#root,
+      stage: () => ({ type: self.#state.stage.type, seq: self.#stageSeq, enteredAt: self.#stageEnteredAt }),
+      emit: (sample) => this.#dispatch({ type: 'RECORD_INPUT', sample }, sample.time),
+    });
+
     // Attributes are not reliably available in the constructor; the state is
     // re-created from them in connectedCallback / attributeChangedCallback.
     this.#state = createInitialState(resolveConfig(), newSessionId(Math.random), null);
@@ -126,6 +153,8 @@ export class OK2Ride extends HTMLElement {
 
   connectedCallback(): void {
     this.#connected = true;
+    this.#inputs.attach();
+    this.#stageEnteredAt = performance.now();
     this.#strings = this.#resolveStrings();
     if (this.#state.stage.type === 'IDLE') this.#state = this.#freshState();
     this.#screenKey = null;
@@ -134,6 +163,7 @@ export class OK2Ride extends HTMLElement {
 
   disconnectedCallback(): void {
     this.#connected = false;
+    this.#inputs.detach();
     this.#clearStageTimer();
     this.#clearDeadline();
     this.#unmountScreen();
@@ -208,6 +238,14 @@ export class OK2Ride extends HTMLElement {
     else this.removeAttribute('stage-pool');
   }
 
+  /** How strictly scripted or bot-like input is rejected. */
+  get humanCheck(): HumanCheckMode {
+    return resolveConfig(this.#attributeConfig()).humanCheck;
+  }
+  set humanCheck(value: HumanCheckMode) {
+    this.setAttribute('human-check', value);
+  }
+
   get challengeNonce(): string | null {
     return this.getAttribute('challenge-nonce');
   }
@@ -229,6 +267,14 @@ export class OK2Ride extends HTMLElement {
   /** Tests drawn for the current / most recent run, in presentation order. */
   get plan(): readonly TestId[] {
     return this.#state.plan;
+  }
+
+  /**
+   * Humanity check over the input seen so far, live during a run. `null` when
+   * `human-check` is `off`.
+   */
+  get humanity(): HumanityReport | null {
+    return humanityOf(this.#state, { automation: automationDetected() });
   }
 
   /** Result of the most recent run, or `null` until evaluated. */
@@ -262,6 +308,7 @@ export class OK2Ride extends HTMLElement {
       difficulty: this.getAttribute('difficulty'),
       stageCount: this.getAttribute('stage-count'),
       stagePool: this.getAttribute('stage-pool'),
+      humanCheck: this.getAttribute('human-check'),
     };
   }
 
@@ -278,13 +325,19 @@ export class OK2Ride extends HTMLElement {
 
   #dispatch(action: Action, now: number = performance.now()): void {
     const previous = this.#state;
-    const next = reduce(previous, action, { now, epochMs: Date.now(), random: Math.random });
+    const next = reduce(previous, action, { now, epochMs: Date.now(), random: Math.random, automation: automationDetected() });
     if (next === previous) return;
     this.#state = next;
-    this.#afterTransition(previous, next);
+    this.#afterTransition(previous, next, now);
   }
 
-  #afterTransition(previous: MachineState, next: MachineState): void {
+  #afterTransition(previous: MachineState, next: MachineState, now: number): void {
+    // Stamp the new stage before rendering it, so input that answers it is
+    // timed against the moment it appeared.
+    if (previous.stage.type !== next.stage.type) {
+      this.#stageSeq++;
+      this.#stageEnteredAt = now;
+    }
     this.#clearStageTimer();
     if (previous.assessmentStartTime === null && next.assessmentStartTime !== null) {
       this.#armDeadline(next.config.timeLimitMs);

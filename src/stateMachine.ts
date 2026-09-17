@@ -17,6 +17,7 @@ import type {
   AssessmentConfig,
   AssessmentResult,
   FailureReason,
+  HumanityReport,
   MachineState,
   PvtResult,
   ReducerEnv,
@@ -27,6 +28,7 @@ import type {
   TimerEffect,
 } from './types';
 import { TEST_IDS } from './types';
+import { assessHumanity, humanCheckFailed, recordInput } from './humanity';
 import { TASKS, taskForStage } from './tasks';
 import { max, mean, median, min, round2, shuffle } from './tasks/shared';
 import { pvtReactionTimes } from './tasks/pvt';
@@ -61,6 +63,7 @@ export function createInitialState(config: AssessmentConfig, sessionId: string, 
     plan: [],
     planIndex: 0,
     results: [],
+    inputs: [],
   };
 }
 
@@ -87,6 +90,15 @@ export function currentTest(state: MachineState): TestId | null {
 }
 
 /**
+ * Scores the input evidence gathered so far. `null` when the humanity check is
+ * switched off, in which case nothing is collected in the first place.
+ */
+export function humanityOf(state: MachineState, env: Pick<ReducerEnv, 'automation'> = {}): HumanityReport | null {
+  if (state.config.humanCheck === 'off') return null;
+  return assessHumanity(state.inputs, { automation: env.automation === true });
+}
+
+/**
  * Describes the single timer the host must arm for the current stage, with
  * the remaining delay computed relative to `now`. `null` for stages that
  * wait on the user alone.
@@ -105,6 +117,14 @@ export function reduce(state: MachineState, action: Action, env: ReducerEnv): Ma
   }
   if (action.type === 'TIME_LIMIT_REACHED') {
     return isInProgress(state.stage) ? evaluate(state, env, false, 'TIME_LIMIT_EXCEEDED', currentTest(state)) : state;
+  }
+  if (action.type === 'RECORD_INPUT') {
+    // Nothing is judged before the rider has started, or once the run is over.
+    if (state.config.humanCheck === 'off' || state.stage.type === 'IDLE' || state.stage.type === 'EVALUATED') return state;
+    const next: MachineState = { ...state, inputs: recordInput(state.inputs, action.sample) };
+    const report = humanityOf(next, env);
+    // Conclusive evidence ends the run at once rather than at evaluation.
+    return humanCheckFailed(report, next.config.humanCheck) ? evaluate(next, env, false, 'HUMAN_CHECK_FAILED', currentTest(next), report) : next;
   }
 
   const { stage } = state;
@@ -159,9 +179,18 @@ function finishTest(state: MachineState, env: ReducerEnv, test: TestId, result: 
   return { ...withResult, planIndex: nextIndex, stage: { type: 'TEST_INTRO', test: next, index: nextIndex } };
 }
 
-function evaluate(state: MachineState, env: ReducerEnv, passed: boolean, failureReason: FailureReason | null, failedTest: TestId | null): MachineState {
-  const details = buildResult(state, env, passed, failureReason, failedTest);
-  return { ...state, stage: { type: 'EVALUATED', passed, details } };
+function evaluate(
+  state: MachineState,
+  env: ReducerEnv,
+  passed: boolean,
+  failureReason: FailureReason | null,
+  failedTest: TestId | null,
+  humanity: HumanityReport | null = humanityOf(state, env),
+): MachineState {
+  // A run that answered every test still fails if the answers were not a person's.
+  const human = !(passed && humanCheckFailed(humanity, state.config.humanCheck));
+  const details = buildResult(state, env, passed && human, human ? failureReason : 'HUMAN_CHECK_FAILED', failedTest, humanity);
+  return { ...state, stage: { type: 'EVALUATED', passed: details.passed, details } };
 }
 
 function exceededTimeLimit(state: MachineState, now: number): boolean {
@@ -200,6 +229,7 @@ export function buildResult(
   passed: boolean,
   failureReason: FailureReason | null,
   failedTest: TestId | null,
+  humanity: HumanityReport | null = humanityOf(state, env),
 ): AssessmentResult {
   const pvt: PvtResult | null = findResult(state.results, 'pvt');
   const spatial: SpatialResult | null = findResult(state.results, 'spatial');
@@ -211,7 +241,7 @@ export function buildResult(
   const falseStartCount = pvt?.falseStartCount ?? 0;
 
   const verificationToken = buildVerificationToken({
-    v: 1,
+    v: 2,
     sid: state.sessionId,
     nonce: state.nonce,
     ok: passed,
@@ -222,6 +252,8 @@ export function buildResult(
     fs: falseStartCount,
     se: spatial ? spatial.errorDeg : null,
     pl: state.plan.join(','),
+    hv: humanity ? humanity.verdict : null,
+    hs: humanity ? humanity.score : null,
   });
 
   return {
@@ -244,6 +276,7 @@ export function buildResult(
     falseStartCount,
     trials: pvt?.trials ?? [],
     spatial,
+    humanity,
     verificationToken,
   };
 }

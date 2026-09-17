@@ -161,6 +161,7 @@
           <ol class="steps">
             <li><strong>Draw</strong><span>The component shuffles the pool and picks the tests for this run. The rider sees what to expect, then a Go button before each test.</span></li>
             <li><strong>Measure</strong><span>Inputs are timestamped with <code>performance.now()</code>; flash stimuli are revealed on an animation frame so onset is sampled right before the paint.</span></li>
+            <li><strong>Check</strong><span>The same inputs are weighed for the marks of a script — untrusted events, timing no hand could repeat — and a run driven by one is rejected.</span></li>
             <li><strong>Verify</strong><span>The result event carries per-test metrics and a checksummed token bound to your nonce. Validate it on the server before unlocking.</span></li>
           </ol>
         </div>

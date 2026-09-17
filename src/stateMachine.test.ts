@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { resolveConfig, type ConfigInput } from './config';
-import { classifyReaction, createInitialState, isInProgress, reduce, selectPlan, timerEffectFor } from './stateMachine';
+import { classifyReaction, createInitialState, humanityOf, isInProgress, reduce, selectPlan, timerEffectFor } from './stateMachine';
 import { decodeVerificationToken } from './token';
-import type { AssessmentConfig, MachineState, ReducerEnv, TestId, TestStage } from './types';
+import type { AssessmentConfig, InputSample, MachineState, ReducerEnv, TestId, TestStage } from './types';
 import { TEST_IDS } from './types';
 
 const env = (now: number, random = 0.5): ReducerEnv => ({ now, epochMs: 1_700_000_000_000 + now, random: () => random });
@@ -702,7 +702,7 @@ describe('verification token', () => {
     const { details } = expectStage(reduce(s1, { type: 'COMPLETE_SPATIAL_STAGE' }, env(20_200)), 'EVALUATED');
     expect(details.verificationToken).toMatch(/^ok2r1\.[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
     expect(decodeVerificationToken(details.verificationToken)).toEqual({
-      v: 1,
+      v: 2,
       sid: 'session-1',
       nonce: 'nonce-1',
       ok: true,
@@ -713,6 +713,8 @@ describe('verification token', () => {
       fs: 0,
       se: 0,
       pl: 'pvt,spatial',
+      hv: 'human',
+      hs: 1,
     });
   });
 
@@ -721,5 +723,110 @@ describe('verification token', () => {
     const [prefix, payload, sig] = details.verificationToken.split('.');
     expect(decodeVerificationToken(`${prefix}.${payload}x.${sig}`)).toBeNull();
     expect(decodeVerificationToken('garbage')).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------------ */
+/* Humanity check                                                            */
+/* ------------------------------------------------------------------------ */
+
+/** The same environment, in a browser that admits to being automated. */
+const botEnv = (now: number): ReducerEnv => ({ ...env(now), automation: true });
+
+function inputSample(overrides: Partial<InputSample> = {}): InputSample {
+  return {
+    time: 2_000,
+    kind: 'pointer',
+    trusted: true,
+    pointerType: 'touch',
+    x: 140,
+    y: 260,
+    movesSince: 2,
+    stage: 'PVT_STIMULUS_ACTIVE',
+    stageSeq: 1,
+    sinceStageMs: 300,
+    ...overrides,
+  };
+}
+
+/** Feeds taps whose latency repeats to the millisecond, as a script's would. */
+function uniformInputs(state: MachineState, count: number, envFor: (now: number) => ReducerEnv = env): MachineState {
+  let s = state;
+  for (let i = 0; i < count; i++) {
+    const time = 2_000 + i * 1_000;
+    s = reduce(s, { type: 'RECORD_INPUT', sample: inputSample({ time, stageSeq: i + 1, x: 140 + i, y: 260 - i }) }, envFor(time));
+  }
+  return s;
+}
+
+describe('reduce: humanity check', () => {
+  const config = configFor(['pvt']);
+
+  it('collects evidence only while a run is underway, and drops it on reset', () => {
+    const idle = initial(config);
+    expect(reduce(idle, { type: 'RECORD_INPUT', sample: inputSample() }, env(0))).toBe(idle);
+
+    const running = reduce(begin(config), { type: 'RECORD_INPUT', sample: inputSample() }, env(2_000));
+    expect(running.inputs).toHaveLength(1);
+    expect(reduce(running, { type: 'RESET_TEST' }, env(3_000)).inputs).toEqual([]);
+
+    const evaluated = reduce(running, { type: 'TIME_LIMIT_REACHED' }, env(40_000));
+    expectStage(evaluated, 'EVALUATED');
+    expect(reduce(evaluated, { type: 'RECORD_INPUT', sample: inputSample() }, env(41_000))).toBe(evaluated);
+  });
+
+  it('ends the run as soon as one input proves scripted, and says so in the token', () => {
+    const s = reduce(begin(config), { type: 'RECORD_INPUT', sample: inputSample({ trusted: false }) }, env(2_000));
+    const evaluated = expectStage(s, 'EVALUATED');
+    expect(evaluated.passed).toBe(false);
+    expect(evaluated.details.failureReason).toBe('HUMAN_CHECK_FAILED');
+    expect(evaluated.details.failedTest).toBe('pvt');
+    expect(evaluated.details.humanity).toMatchObject({ verdict: 'automated', score: 0 });
+    expect(decodeVerificationToken(evaluated.details.verificationToken)).toMatchObject({ ok: false, hv: 'automated', hs: 0 });
+  });
+
+  it('weighs behaviour: uniform timing is suspect on its own, damning with the automation flag', () => {
+    const suspect = uniformInputs(begin(config), 6);
+    expectStage(suspect, 'PVT_AWAITING_STIMULUS');
+    expect(humanityOf(suspect)).toMatchObject({ verdict: 'suspect', latencyCv: 0 });
+
+    const caught = uniformInputs(begin(config), 6, botEnv);
+    expect(expectStage(caught, 'EVALUATED').details.failureReason).toBe('HUMAN_CHECK_FAILED');
+  });
+
+  it('lenient mode reports behaviour but only ends the run on scripted input', () => {
+    const lenient = configFor(['pvt'], { humanCheck: 'lenient' });
+    const s = uniformInputs(begin(lenient), 6, botEnv);
+    expectStage(s, 'PVT_AWAITING_STIMULUS');
+    expect(humanityOf(s, { automation: true })).toMatchObject({ verdict: 'automated' });
+
+    const scripted = reduce(s, { type: 'RECORD_INPUT', sample: inputSample({ trusted: false, time: 9_000 }) }, botEnv(9_000));
+    expect(expectStage(scripted, 'EVALUATED').details.failureReason).toBe('HUMAN_CHECK_FAILED');
+  });
+
+  it('never lets a passing result carry an automated verdict', () => {
+    // Evidence gathered before the browser owned up to being automated.
+    let s = pvtTrial(pvtTrial(uniformInputs(begin(config), 6), 300), 310);
+    const onset = expectStage(s, 'PVT_AWAITING_STIMULUS').stimulusTime;
+    s = reduce(s, { type: 'TRIGGER_STIMULUS' }, env(onset));
+    s = reduce(s, { type: 'TARGET_TAPPED', tapTime: onset + 320 }, env(onset + 320));
+    // Three clean taps in a row: the reaction test itself passed.
+    const evaluated = expectStage(reduce(s, { type: 'ADVANCE' }, botEnv(onset + 2_000)), 'EVALUATED');
+    expect(evaluated.details.results).toMatchObject([{ test: 'pvt', validTrialCount: 3, lapseCount: 0 }]);
+    expect(evaluated.passed).toBe(false);
+    expect(evaluated.details.failureReason).toBe('HUMAN_CHECK_FAILED');
+    expect(evaluated.details.humanity?.verdict).toBe('automated');
+  });
+
+  it('off keeps no evidence and reports none', () => {
+    const off = configFor(['pvt'], { humanCheck: 'off' });
+    const s = reduce(begin(off), { type: 'RECORD_INPUT', sample: inputSample({ trusted: false }) }, botEnv(2_000));
+    expectStage(s, 'PVT_AWAITING_STIMULUS');
+    expect(s.inputs).toEqual([]);
+    expect(humanityOf(s, { automation: true })).toBeNull();
+
+    const evaluated = expectStage(reduce(s, { type: 'TIME_LIMIT_REACHED' }, botEnv(40_000)), 'EVALUATED');
+    expect(evaluated.details.humanity).toBeNull();
+    expect(decodeVerificationToken(evaluated.details.verificationToken)).toMatchObject({ hv: null, hs: null });
   });
 });

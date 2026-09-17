@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OK2Ride, TAG_NAME } from '../index';
+import { decodeVerificationToken } from '../token';
 import type { AssessmentResult, TestStage } from '../types';
 
 const FAKE = ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] as const;
@@ -30,6 +31,26 @@ function click(el: OK2Ride, selector: string): void {
 
 function activate(target: Element): void {
   target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+}
+
+/**
+ * An event as a script dispatches it. Browsers set `isTrusted` to false for
+ * anything `dispatchEvent` produces; happy-dom leaves it undefined, so the
+ * flag is forged here to reproduce what the widget sees in the real thing.
+ */
+function scripted<E extends Event>(event: E): E {
+  Object.defineProperty(event, 'isTrusted', { value: false, configurable: true });
+  return event;
+}
+
+/** Taps the whole number trail in order, every tap the same distance apart. */
+function runTrail(el: OK2Ride, gapMs: number): void {
+  const nodes = [...shadow(el).querySelectorAll('.trail-node')];
+  const byValue = new Map(nodes.map((node) => [Number(node.textContent), node]));
+  for (let value = 1; value <= nodes.length; value++) {
+    vi.advanceTimersByTime(gapMs);
+    activate(byValue.get(value) as Element);
+  }
 }
 
 function stage<T extends TestStage['type']>(el: OK2Ride, type: T): Extract<TestStage, { type: T }> {
@@ -383,6 +404,85 @@ describe('<ok2ride-check>', () => {
     vi.advanceTimersByTime(5_001);
     expect(stage(el, 'EVALUATED').details.failureReason).toBe('TIME_LIMIT_EXCEEDED');
     expect((failed as unknown as AssessmentResult).completionTimeMs).toBeGreaterThanOrEqual(5_000);
+  });
+
+  /* --- humanity check ------------------------------------------------------- */
+
+  it('ends the run when an input event was dispatched by a script', () => {
+    const el = mount({ 'stage-pool': 'pvt', 'stage-count': '1' });
+    let failed: AssessmentResult | null = null;
+    el.addEventListener('capability-failed', (e) => (failed = e.detail));
+    launch(el);
+    stage(el, 'PVT_AWAITING_STIMULUS');
+
+    query(el, '.tap-area').dispatchEvent(scripted(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+
+    const evaluated = stage(el, 'EVALUATED');
+    expect(evaluated.passed).toBe(false);
+    expect(evaluated.details.failureReason).toBe('HUMAN_CHECK_FAILED');
+    expect(evaluated.details.humanity).toMatchObject({ verdict: 'automated', score: 0 });
+    expect(evaluated.details.humanity?.signals[0]?.id).toBe('synthetic-event');
+    expect(decodeVerificationToken(evaluated.details.verificationToken)).toMatchObject({ ok: false, hv: 'automated' });
+    expect((failed as unknown as AssessmentResult).failureReason).toBe('HUMAN_CHECK_FAILED');
+    expect(query(el, 'p[role="status"]').textContent).toBe('The responses did not look like they came from a person.');
+  });
+
+  it('leaves the idle screen to the host, which may well start a run from code', () => {
+    const el = mount({ 'stage-pool': 'pvt', 'stage-count': '1' });
+    query(el, '[data-action="start"]').dispatchEvent(scripted(new MouseEvent('click', { bubbles: true })));
+    stage(el, 'INSTRUCTION');
+    expect(el.humanity).toMatchObject({ verdict: 'suspect', sampleCount: 0 });
+  });
+
+  it('strict mode ends a run whose timing no hand could produce; lenient only reports it', () => {
+    const strict = mount({ 'stage-pool': 'trail', 'stage-count': '1' });
+    launch(strict);
+    runTrail(strict, 400);
+    const evaluated = stage(strict, 'EVALUATED');
+    expect(evaluated.details.failureReason).toBe('HUMAN_CHECK_FAILED');
+    expect(evaluated.details.humanity?.signals.map((s) => s.id)).toEqual(['uniform-timing', 'automation-flag']);
+    expect(evaluated.details.humanity?.latencyCv).toBe(0);
+
+    const lenient = mount({ 'stage-pool': 'trail', 'stage-count': '1', 'human-check': 'lenient' });
+    launch(lenient);
+    runTrail(lenient, 400);
+    const reported = stage(lenient, 'EVALUATED');
+    expect(reported.passed).toBe(true);
+    expect(reported.details.results[0]).toMatchObject({ test: 'trail', completed: true });
+    expect(reported.details.humanity?.verdict).toBe('automated');
+    expect(decodeVerificationToken(reported.details.verificationToken)).toMatchObject({ ok: true, hv: 'automated' });
+  });
+
+  it('off collects nothing at all, so a test harness can drive the widget', () => {
+    const el = mount({ 'stage-pool': 'trail', 'stage-count': '1', 'human-check': 'off' });
+    expect(el.humanCheck).toBe('off');
+    expect(el.humanity).toBeNull();
+    launch(el);
+    query(el, '.trail-node').dispatchEvent(scripted(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    stage(el, 'TRAIL_ACTIVE');
+    runTrail(el, 400);
+    const evaluated = stage(el, 'EVALUATED');
+    expect(evaluated.passed).toBe(true);
+    expect(evaluated.details.humanity).toBeNull();
+    expect(decodeVerificationToken(evaluated.details.verificationToken)).toMatchObject({ hv: null, hs: null });
+  });
+
+  it('reflects the mode, falls back on nonsense and reports live during a run', () => {
+    const el = mount({ 'stage-pool': 'pvt', 'stage-count': '1' });
+    expect(el.humanCheck).toBe('strict');
+    el.setAttribute('human-check', 'sloppy');
+    expect(el.humanCheck).toBe('strict');
+    el.humanCheck = 'lenient';
+    expect(el.getAttribute('human-check')).toBe('lenient');
+    expect(el.config.humanCheck).toBe('lenient');
+
+    launch(el);
+    pvtTrial(el, 240);
+    const live = el.humanity;
+    expect(live?.sampleCount).toBeGreaterThan(0);
+    // happy-dom reports navigator.webdriver, exactly as a real automated browser does.
+    expect(live?.signals.map((s) => s.id)).toEqual(['automation-flag']);
+    expect(live?.verdict).toBe('suspect');
   });
 
   it('abandons a run when removed from the document and stops its timers', () => {

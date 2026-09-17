@@ -59,7 +59,7 @@ function browser() {
 }
 
 function passToken(nonce: string, pl = 'pvt,stroop'): string {
-  return buildVerificationToken({ v: 1, sid: 's', nonce, ok: true, iat: new Date(clock).toISOString(), ct: 15_000, rt: 290, lp: 0, fs: 0, se: null, pl });
+  return buildVerificationToken({ v: 2, sid: 's', nonce, ok: true, iat: new Date(clock).toISOString(), ct: 15_000, rt: 290, lp: 0, fs: 0, se: null, pl, hv: 'human', hs: 1 });
 }
 
 describe('rental API over HTTP', () => {
@@ -135,7 +135,7 @@ describe('rental API over HTTP', () => {
     const call = browser();
     await call('GET', '/api/me');
     const challenge = await call('POST', '/api/challenges', { bikeId: 'b101' });
-    const failed = buildVerificationToken({ v: 1, sid: 's', nonce: challenge.body.nonce, ok: false, iat: new Date(clock).toISOString(), ct: 9_000, rt: 520, lp: 3, fs: 0, se: null, pl: 'pvt' });
+    const failed = buildVerificationToken({ v: 2, sid: 's', nonce: challenge.body.nonce, ok: false, iat: new Date(clock).toISOString(), ct: 9_000, rt: 520, lp: 3, fs: 0, se: null, pl: 'pvt', hv: 'human', hs: 1 });
     expect(await call('POST', '/api/checks/failed', { token: failed })).toMatchObject({ status: 200, body: { cooldownUntil: clock + 30_000 } });
     expect(await call('POST', '/api/challenges', { bikeId: 'b101' })).toMatchObject({ status: 429, body: { error: { code: 'COOLDOWN', retryAt: clock + 30_000 } } });
   });

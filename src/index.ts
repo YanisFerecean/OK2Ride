@@ -13,7 +13,7 @@ import type { OK2RideEventMap } from './components/OK2Ride';
 export { OK2Ride, TAG_NAME };
 export type { OK2RideEventMap, StageChangeDetail } from './components/OK2Ride';
 export * from './types';
-export { BASE_CONFIG, DEFAULT_DIFFICULTY, DIFFICULTY_PRESETS, LIMITS, isDifficulty, parseStagePool, resolveConfig } from './config';
+export { BASE_CONFIG, DEFAULT_DIFFICULTY, DEFAULT_HUMAN_CHECK, DIFFICULTY_PRESETS, LIMITS, isDifficulty, isHumanCheckMode, parseStagePool, resolveConfig } from './config';
 export type { ConfigInput } from './config';
 export {
   buildResult,
@@ -21,6 +21,7 @@ export {
   collectReactionTimes,
   createInitialState,
   currentTest,
+  humanityOf,
   isInProgress,
   newSessionId,
   pickTargetAngle,
@@ -28,12 +29,15 @@ export {
   selectPlan,
   timerEffectFor,
 } from './stateMachine';
+export { HUMANITY_LIMITS, HUMANITY_WEIGHTS, MAX_INPUT_SAMPLES, assessHumanity, humanCheckFailed, recordInput, responseLatencies } from './humanity';
 export { TASKS, taskForStage } from './tasks';
 export type { TaskModule, TaskReduction } from './tasks';
 export { TEST_INFO, FAILURE_MESSAGES, testInfoFor, failureMessagesFor } from './components/testInfo';
 export type { TestInfo } from './components/testInfo';
 export { EN, DE, LOCALES, DEFAULT_STRINGS, resolveStrings } from './components/i18n';
 export type { Strings, TestStrings } from './components/i18n';
+export { automationDetected } from './components/input';
+export type { InputMonitor, InputMonitorOptions, StageSnapshot } from './components/input';
 export { buildVerificationToken, decodeVerificationToken, fnv1a64, TOKEN_PREFIX } from './token';
 export type { TokenClaims } from './token';
 

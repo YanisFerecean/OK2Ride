@@ -11,7 +11,7 @@
           "name": "OK2Ride",
           "tagName": "ok2ride-check",
           "customElement": true,
-          "description": "Randomly drawn cognitive capability check (reaction, steering, go/no-go, number trail, pattern memory, colour match, time sense, odd one out) for gating micromobility unlocks.",
+          "description": "Randomly drawn cognitive capability check (reaction, steering, go/no-go, number trail, pattern memory, colour match, time sense, odd one out) for gating micromobility unlocks, with a humanity check that rejects scripted input.",
           "attributes": [
             {
               "name": "stage-count",
@@ -63,6 +63,15 @@
                 "text": "string"
               },
               "description": "BCP-47 language tag for the rider-facing text: en, de. Regional tags match on the primary subtag (de-AT resolves to German), unknown tags fall back to English, and without the attribute the document's lang is used. Applies immediately, including mid-run."
+            },
+            {
+              "name": "human-check",
+              "fieldName": "humanCheck",
+              "type": {
+                "text": "'strict' | 'lenient' | 'off'"
+              },
+              "default": "'strict'",
+              "description": "How input that looks scripted or bot-like is treated. strict fails the run on a script-dispatched event or an automated verdict; lenient fails only on script-dispatched events and reports the rest; off collects nothing. Automated test suites should use lenient or off."
             },
             {
               "name": "theme",
@@ -121,6 +130,15 @@
               "type": {
                 "text": "boolean"
               }
+            },
+            {
+              "kind": "field",
+              "name": "humanity",
+              "readonly": true,
+              "type": {
+                "text": "HumanityReport | null"
+              },
+              "description": "Verdict, score and evidence of the humanity check over the input seen so far. Null when human-check is off."
             },
             {
               "kind": "method",

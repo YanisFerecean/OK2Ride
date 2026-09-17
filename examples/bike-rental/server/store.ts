@@ -4,7 +4,7 @@
  * The unlock rule lives here. A rental starts only with a verification token
  * from the OK2Ride widget that is intact, passed, bound to a challenge this
  * server issued to this rider for this bike, unused, unexpired, fresh, long
- * enough, and plausible in timing.
+ * enough, plausible in timing, and taken by a human.
  *
  * Time and randomness are injected so every rule is unit-testable. State
  * lives in memory and resets when the server restarts.
@@ -253,6 +253,9 @@ export class RentalStore {
     if (plan.length < challenge.policy.stageCount) {
       return failure(403, 'NOT_ENOUGH_TESTS', `This bike needs ${challenge.policy.stageCount} tests.`);
     }
+    // Defence in depth: the widget already fails an automated run, so a passing
+    // token that still admits to one has been tampered with.
+    if (claims.hv === 'automated') return failure(403, 'NOT_HUMAN', 'This check did not look like it was taken by a person.');
 
     const rider = this.#rider(riderId);
     if (rider.activeRentalId) return failure(409, 'ALREADY_RIDING', 'You already have a ride in progress.');

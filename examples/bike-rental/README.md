@@ -44,6 +44,7 @@ All of this lives in `server/store.ts`, next to its tests.
 | The token was issued within the last 2 minutes | `TOKEN_STALE` |
 | The check did not take longer than the time since the challenge | `IMPLAUSIBLE_TIMING` |
 | The check ran at least the tests this bike type requires | `NOT_ENOUGH_TESTS` |
+| The humanity verdict in the token is not `automated` | `NOT_HUMAN` |
 | The rider has no ride in progress, the bike is still free | `ALREADY_RIDING`, `BIKE_UNAVAILABLE` |
 
 The token is generated in the browser, so these rules make replay and

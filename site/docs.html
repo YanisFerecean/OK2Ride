@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Documentation · OK2Ride</title>
-    <meta name="description" content="Reference documentation for the OK2Ride web component: installation, attributes, events, result payload, the eight tests, timing, verification tokens, theming, accessibility and the engine API." />
+    <meta name="description" content="Reference documentation for the OK2Ride web component: installation, attributes, events, result payload, the eight tests, timing, the humanity check, verification tokens, theming, accessibility and the engine API." />
     <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
@@ -31,6 +31,7 @@
         <a href="#failure-reasons">Failure reasons</a>
         <a href="#tests">The eight tests</a>
         <a href="#run-flow">Run flow &amp; timing</a>
+        <a href="#humanity">Humanity check</a>
         <h4>Integration</h4>
         <a href="#verification">Server verification</a>
         <a href="#theming">Theming</a>
@@ -53,6 +54,7 @@
             <li><strong>Randomised.</strong> Every run draws a set of tests from a pool of eight, so riders cannot rehearse one fixed task.</li>
             <li><strong>Precise.</strong> Reaction times are measured with <code>performance.now()</code> from the paint that reveals a stimulus.</li>
             <li><strong>Deterministic engine.</strong> A pure reducer drives the whole run; time and randomness are injected, so every transition is unit-tested and replayable.</li>
+            <li><strong>Human.</strong> Every input is checked for the marks of a script, and a run driven by one is rejected.</li>
             <li><strong>Verifiable.</strong> The result carries a checksummed token bound to a nonce your server issued.</li>
             <li><strong>Self-contained.</strong> Zero runtime dependencies, about 19 KB gzipped, dark and light themes, keyboard accessible.</li>
           </ul>
@@ -146,6 +148,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
                 <tr><td><code>lang</code></td><td><code>lang</code></td><td>BCP-47 tag: <code>en</code>, <code>de</code></td><td>inherited</td><td>Language of everything the rider reads. Regional tags match on the primary subtag (<code>de-AT</code> → German); unknown tags fall back to English. Without the attribute the document's <code>lang</code> is used. Unlike the other attributes this is not frozen during a run — setting it re-renders at once.</td></tr>
                 <tr><td><code>max-lapses</code></td><td><code>maxLapses</code></td><td>number, 0–20</td><td><code>2</code></td><td>Reaction test only: the run fails once the lapse count exceeds this.</td></tr>
                 <tr><td><code>time-limit-ms</code></td><td><code>timeLimitMs</code></td><td>number, 5 000–600 000</td><td><code>90000</code></td><td>Budget for the whole run, counted from the moment the rider acknowledges the instructions.</td></tr>
+                <tr><td><code>human-check</code></td><td><code>humanCheck</code></td><td><code>strict</code> | <code>lenient</code> | <code>off</code></td><td><code>strict</code></td><td>How input that looks scripted or bot-like is treated. See <a href="#humanity">Humanity check</a>.</td></tr>
                 <tr><td><code>theme</code></td><td><code>theme</code></td><td><code>dark</code> | <code>light</code></td><td><code>dark</code></td><td>Applied instantly, even mid-run.</td></tr>
                 <tr><td><code>challenge-nonce</code></td><td><code>challengeNonce</code></td><td>string</td><td>none</td><td>Opaque value from your server. Echoed in the result and bound into the token so a result cannot be replayed for another unlock.</td></tr>
               </tbody>
@@ -164,6 +167,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
                 <tr><td><code>config</code></td><td><code>AssessmentConfig</code></td><td>The fully resolved parameters in force, including every per-test threshold.</td></tr>
                 <tr><td><code>result</code></td><td><code>AssessmentResult | null</code></td><td>The outcome of the last run, or <code>null</code> until evaluated.</td></tr>
                 <tr><td><code>active</code></td><td><code>boolean</code></td><td>True while tests are running.</td></tr>
+                <tr><td><code>humanity</code></td><td><code>HumanityReport | null</code></td><td>The humanity check over the input seen so far, live during a run. <code>null</code> when <code>human-check</code> is <code>off</code>.</td></tr>
               </tbody>
             </table>
           </div>
@@ -205,6 +209,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
                 <tr><td><code>meanRtMs</code>, <code>medianRtMs</code>, <code>fastestRtMs</code>, <code>slowestRtMs</code></td><td><code>number | null</code></td><td>Over every informative reaction time recorded across the run: PVT responses (excluding false starts and timeouts), Go/Stop hits, correct Stroop answers and odd-one-out finds.</td></tr>
                 <tr><td><code>validTrialCount</code>, <code>lapseCount</code>, <code>falseStartCount</code>, <code>trials</code></td><td>numbers, <code>PvtTrial[]</code></td><td>Reaction-test metrics. Zero or empty when that test was not drawn.</td></tr>
                 <tr><td><code>spatial</code></td><td><code>SpatialResult | null</code></td><td>Steering result when it ran.</td></tr>
+                <tr><td><code>humanity</code></td><td><code>HumanityReport | null</code></td><td>Verdict, score and evidence from the <a href="#humanity">humanity check</a>. <code>null</code> when it is off.</td></tr>
                 <tr><td><code>verificationToken</code></td><td>string</td><td>Checksummed token, see <a href="#verification">Server verification</a>.</td></tr>
               </tbody>
             </table>
@@ -249,6 +254,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
                 <tr><td><code>TIMING_OFF_TARGET</code></td><td>timing</td><td>Intervals misjudged beyond the tolerance exceeded the allowance.</td></tr>
                 <tr><td><code>SEARCH_TOO_MANY_ERRORS</code></td><td>search</td><td>Wrong or unfound symbols exceeded the allowance.</td></tr>
                 <tr><td><code>TIME_LIMIT_EXCEEDED</code></td><td>any</td><td>The overall <code>time-limit-ms</code> ran out.</td></tr>
+                <tr><td><code>HUMAN_CHECK_FAILED</code></td><td>any</td><td>The input did not come from a person. See <a href="#humanity">Humanity check</a>.</td></tr>
               </tbody>
             </table>
           </div>
@@ -352,6 +358,82 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
           <p>Removing the element from the document during a run abandons the run silently and clears every timer; reattaching shows the idle screen.</p>
         </section>
 
+        <section id="humanity">
+          <h2>Humanity check</h2>
+          <p>
+            The widget already measures how a rider responds, so it holds the evidence needed to answer a second question: was this a person at all?
+            Every input it acts on is reduced to a sample — trusted or not, pointer or key, where, when, and how long after the stage appeared — and
+            scored. The verdict travels on the result and inside the token.
+          </p>
+          <pre><code>captcha.addEventListener('capability-failed', (e) =&gt; {
+  if (e.detail.failureReason === 'HUMAN_CHECK_FAILED') {
+    console.warn(e.detail.humanity.signals);   // why it was rejected
+  }
+});
+
+captcha.humanity;   // live during a run: { verdict, score, signals, sampleCount, latencyCv }</code></pre>
+          <h3>What counts as evidence</h3>
+          <p>
+            One kind is decisive. <code>Event.isTrusted</code> is false for every event a script dispatched; the DOM specification guarantees it and
+            page code cannot forge it, so a single one ends the run at once. The widget subscribes in the capture phase from its own constructor, before
+            any host script can reach the shadow root, so nothing can get in front of it.
+          </p>
+          <p>
+            The rest is behavioural, and each piece is only suggestive. Every signal carries a weight, the weights are summed, and two independent
+            signals have to agree before a run is rejected — from <strong>0.3</strong> the verdict is <code>suspect</code>, from <strong>0.8</strong>
+            it is <code>automated</code>.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Signal</th><th>Weight</th><th>Fires when</th></tr></thead>
+              <tbody>
+                <tr><td><code>synthetic-event</code></td><td>1.00</td><td>An input event carried <code>isTrusted === false</code>. Decisive on its own.</td></tr>
+                <tr><td><code>uniform-timing</code></td><td>0.60</td><td>Six or more response latencies varying by less than 2 %. No hand is that steady.</td></tr>
+                <tr><td><code>fixed-pointer</code></td><td>0.60</td><td>Four or more touch taps on different stages from one exact pixel.</td></tr>
+                <tr><td><code>automation-flag</code></td><td>0.50</td><td>The browser reports <code>navigator.webdriver</code>.</td></tr>
+                <tr><td><code>superhuman-latency</code></td><td>0.50</td><td>More than one response under 60 ms, which beats nerve conduction.</td></tr>
+                <tr><td><code>still-pointer</code></td><td>0.35</td><td>Three or more mouse taps without the pointer ever moving.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Latencies are only read where an input answers something that just appeared: the time from a stimulus to the tap, and the gaps between taps
+            inside the trail and pattern tests. Adjusting the steering dial or tapping while the panel is still dark says nothing about who is tapping.
+            Coordinates are only judged for touch and pen, because a mouse left resting on a button repeats its coordinates exactly as a script would.
+          </p>
+          <h3>Modes</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th><code>human-check</code></th><th>Ends the run on</th><th><code>humanity</code></th></tr></thead>
+              <tbody>
+                <tr><td><code>strict</code> (default)</td><td>Scripted input, or an <code>automated</code> verdict.</td><td>Reported.</td></tr>
+                <tr><td><code>lenient</code></td><td>Scripted input only. Behaviour is reported, never enforced.</td><td>Reported.</td></tr>
+                <tr><td><code>off</code></td><td>Nothing. No evidence is collected at all.</td><td><code>null</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            A rejected run fails like any other: <code>capability-failed</code> with <code>failureReason: 'HUMAN_CHECK_FAILED'</code>, and the rider
+            sees "The responses did not look like they came from a person." The verdict and score are bound into the token as <code>hv</code> and
+            <code>hs</code>, so a backend can weigh them even when the run was allowed to finish, and reject a passing token that admits to a machine.
+          </p>
+          <div class="callout danger">
+            <p>
+              <strong>Evidence, not proof.</strong> The check runs in the browser it is judging. It reliably rejects the cheap attack — dispatching
+              events at the element — and makes the expensive one harder, but a driver-based bot that imitates human jitter will pass. The thresholds
+              sit well outside what a hand can produce, so genuine riders are rarely accused; the price is that a careful bot is missed. Treat the
+              report as one input to a server-side decision, next to the nonce, rate limits and your own fraud signals.
+            </p>
+          </div>
+          <div class="callout">
+            <p>
+              <strong>Your own end-to-end tests.</strong> A test suite driving the widget is automation, and strict mode is meant to reject it. Run it
+              with <code>human-check="lenient"</code> in CI — dispatched events are still rejected, behaviour is only reported — or <code>"off"</code>
+              to switch the check off entirely.
+            </p>
+          </div>
+        </section>
+
         <section id="verification">
           <h2>Server verification</h2>
           <p>The result carries a <code>verificationToken</code> of the form <code>ok2r1.&lt;base64url claims&gt;.&lt;fnv1a-64 checksum&gt;</code>. The claims are:</p>
@@ -359,7 +441,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
             <table>
               <thead><tr><th>Claim</th><th>Meaning</th></tr></thead>
               <tbody>
-                <tr><td><code>v</code></td><td>Token version, <code>1</code>.</td></tr>
+                <tr><td><code>v</code></td><td>Claims version, <code>2</code>. Version 1 tokens, from 0.1.x, no longer decode.</td></tr>
                 <tr><td><code>sid</code></td><td>Session id.</td></tr>
                 <tr><td><code>nonce</code></td><td>Your <code>challenge-nonce</code>, or <code>null</code>.</td></tr>
                 <tr><td><code>ok</code></td><td>Passed.</td></tr>
@@ -369,6 +451,7 @@ export function RideCheck({ nonce, onPass }: { nonce: string; onPass: (r: Assess
                 <tr><td><code>lp</code>, <code>fs</code></td><td>Lapse and false-start counts.</td></tr>
                 <tr><td><code>se</code></td><td>Steering error in degrees, or <code>null</code>.</td></tr>
                 <tr><td><code>pl</code></td><td>The plan, comma-separated test ids.</td></tr>
+                <tr><td><code>hv</code>, <code>hs</code></td><td>Humanity verdict and score, or <code>null</code> when the check was off.</td></tr>
               </tbody>
             </table>
           </div>
@@ -466,13 +549,14 @@ const timer = timerEffectFor(state, 1200);
                 <tr><td><code>selectPlan(config, random)</code></td><td>Draws the tests for a run.</td></tr>
                 <tr><td><code>resolveConfig(input)</code></td><td>Validates loose attribute values into an <code>AssessmentConfig</code>.</td></tr>
                 <tr><td><code>TASKS</code>, <code>taskForStage(stage)</code></td><td>The task modules and the module owning a given stage.</td></tr>
+                <tr><td><code>assessHumanity(samples, options)</code>, <code>humanCheckFailed(report, mode)</code></td><td>The humanity scorer and the gate it feeds, both pure. <code>humanityOf(state, env)</code> scores a machine state directly.</td></tr>
                 <tr><td><code>TEST_INFO</code>, <code>FAILURE_MESSAGES</code></td><td>Human-readable names, descriptions and failure messages.</td></tr>
                 <tr><td><code>buildVerificationToken</code>, <code>decodeVerificationToken</code></td><td>Token helpers; also available from <code>ok2ride/token</code>.</td></tr>
               </tbody>
             </table>
           </div>
           <h3>Actions</h3>
-          <p><code>START_ASSESSMENT</code>, <code>ACKNOWLEDGE_INSTRUCTIONS</code>, <code>BEGIN_TEST</code>, <code>TRIGGER_STIMULUS</code>, <code>TARGET_TAPPED</code>, <code>STIMULUS_TIMEOUT</code>, <code>ADVANCE</code>, <code>UPDATE_SPATIAL_ANGLE</code>, <code>COMPLETE_SPATIAL_STAGE</code>, <code>TRAIL_TAPPED</code>, <code>SEQUENCE_TILE_TAPPED</code>, <code>STROOP_ANSWERED</code>, <code>STAGE_TIMEOUT</code>, <code>TIME_LIMIT_REACHED</code>, <code>RESET_TEST</code>. Timed inputs carry a <code>tapTime</code>.</p>
+          <p><code>START_ASSESSMENT</code>, <code>ACKNOWLEDGE_INSTRUCTIONS</code>, <code>BEGIN_TEST</code>, <code>TRIGGER_STIMULUS</code>, <code>TARGET_TAPPED</code>, <code>STIMULUS_TIMEOUT</code>, <code>ADVANCE</code>, <code>UPDATE_SPATIAL_ANGLE</code>, <code>COMPLETE_SPATIAL_STAGE</code>, <code>TRAIL_TAPPED</code>, <code>SEQUENCE_TILE_TAPPED</code>, <code>STROOP_ANSWERED</code>, <code>STAGE_TIMEOUT</code>, <code>TIME_LIMIT_REACHED</code>, <code>RECORD_INPUT</code>, <code>RESET_TEST</code>. Timed inputs carry a <code>tapTime</code>; <code>RECORD_INPUT</code> carries an <code>InputSample</code>.</p>
         </section>
 
         <section id="example-app">
@@ -504,7 +588,9 @@ const timer = timerEffectFor(state, 1200);
         <section id="faq">
           <h2>FAQ</h2>
           <h3>Can riders cheat by automating taps?</h3>
-          <p>The random draw, random foreperiods, random targets and the nonce make scripted replays impractical, but nothing running in a browser is tamper-proof. Combine the check with server-side nonces, rate limits and your existing fraud signals.</p>
+          <p>Events dispatched at the element are rejected outright, and timing or pointer behaviour no hand could produce fails the run too — see <a href="#humanity">Humanity check</a>. Beyond that, the random draw, random foreperiods, random targets and the nonce make scripted replays impractical, but nothing running in a browser is tamper-proof: a driver-based bot that imitates human jitter will get through. Combine the check with server-side nonces, rate limits and your existing fraud signals.</p>
+          <h3>My end-to-end tests fail the check. Is that a bug?</h3>
+          <p>No: an automated test is automation, and strict mode is meant to catch it. Set <code>human-check="lenient"</code> in CI, which still rejects dispatched events but only reports behaviour, or <code>"off"</code> to switch the check off.</p>
           <h3>Why does a valid tap sometimes read a few milliseconds high?</h3>
           <p>Onset is sampled at the animation frame that reveals the stimulus; the actual pixels appear at the next display refresh, up to one frame later. This bias is constant and well under the 100 ms and 450 ms thresholds.</p>
           <h3>Tilt steering does not appear on my phone.</h3>

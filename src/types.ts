@@ -17,6 +17,17 @@ export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
 export const THEMES: readonly Theme[] = ['dark', 'light'];
 
 /**
+ * How strictly the humanity check gates a run.
+ *
+ * - `strict`   fails on scripted input and on behaviour that scores as automated.
+ * - `lenient`  fails on scripted input only; behavioural signals are reported.
+ * - `off`      collects nothing and reports `humanity: null`.
+ */
+export type HumanCheckMode = 'strict' | 'lenient' | 'off';
+
+export const HUMAN_CHECK_MODES: readonly HumanCheckMode[] = ['strict', 'lenient', 'off'];
+
+/**
  * The tests that can be drawn into a run.
  *
  * - `pvt`       Psychomotor Vigilance Task: tap as soon as the panel flashes.
@@ -44,6 +55,8 @@ export interface ReducerEnv {
   readonly epochMs: number;
   /** Uniform random source in [0, 1). */
   readonly random: () => number;
+  /** True when the browser reports itself as automation-controlled (`navigator.webdriver`). */
+  readonly automation?: boolean;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -64,6 +77,8 @@ export interface AssessmentConfig {
   readonly stageCount: number;
   /** Tests eligible for selection. Empty means every test. */
   readonly stagePool: readonly TestId[];
+  /** How the humanity check gates the run. */
+  readonly humanCheck: HumanCheckMode;
 
   /* --- pvt ------------------------------------------------------------------ */
   readonly requiredValidTrials: number;
@@ -133,6 +148,71 @@ export interface AssessmentConfig {
   readonly searchRoundTimeoutMs: number;
   readonly searchMaxErrors: number;
   readonly searchResultDisplayMs: number;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Humanity check                                                            */
+/* ------------------------------------------------------------------------ */
+
+/** How an input reached the widget. */
+export type InputKind = 'pointer' | 'key' | 'click';
+
+/**
+ * One observed input event, reduced to the traits that say something about
+ * who produced it. Collected by the element, scored by `assessHumanity()`.
+ */
+export interface InputSample {
+  /** `performance.now()` sampled at the top of the event handler. */
+  readonly time: number;
+  readonly kind: InputKind;
+  /** `Event.isTrusted`. False means a script dispatched the event. */
+  readonly trusted: boolean;
+  /** `PointerEvent.pointerType` (`mouse` | `touch` | `pen`); null when unknown. */
+  readonly pointerType: string | null;
+  /** Rounded viewport coordinates of a pointer event; null for keys and bare clicks. */
+  readonly x: number | null;
+  readonly y: number | null;
+  /** Pointer moves observed since the previous sample. */
+  readonly movesSince: number;
+  /** Stage the input was delivered to. */
+  readonly stage: StageType;
+  /** Identifies the stage occurrence, so a repeated stage type is still distinguishable. */
+  readonly stageSeq: number;
+  /** Time from entering that stage occurrence to the event, in ms. */
+  readonly sinceStageMs: number;
+}
+
+/**
+ * - `synthetic-event`     an input event carried `isTrusted === false`.
+ * - `automation-flag`     the browser reports `navigator.webdriver`.
+ * - `uniform-timing`      response latencies vary less than any hand can.
+ * - `superhuman-latency`  repeated responses faster than human nerve conduction.
+ * - `fixed-pointer`       touch taps on different stages from one exact coordinate.
+ * - `still-pointer`       a mouse that clicks repeatedly without ever moving.
+ */
+export type HumanitySignalId = 'synthetic-event' | 'automation-flag' | 'uniform-timing' | 'superhuman-latency' | 'fixed-pointer' | 'still-pointer';
+
+export interface HumanitySignal {
+  readonly id: HumanitySignalId;
+  /** Contribution to the suspicion total, 0–1. */
+  readonly weight: number;
+  /** True for evidence that settles the question on its own. */
+  readonly decisive: boolean;
+  /** Diagnostic text for logs and backends. Not rider-facing, so not localised. */
+  readonly detail: string;
+}
+
+export type HumanityVerdict = 'human' | 'suspect' | 'automated';
+
+export interface HumanityReport {
+  readonly verdict: HumanityVerdict;
+  /** 1 = nothing suggests automation, 0 = conclusively automated. */
+  readonly score: number;
+  /** Evidence found, strongest first. Empty means nothing was detected. */
+  readonly signals: readonly HumanitySignal[];
+  readonly sampleCount: number;
+  /** Coefficient of variation of the response latencies; null below the sample minimum. */
+  readonly latencyCv: number | null;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -357,7 +437,8 @@ export type FailureReason =
   | 'SEQUENCE_TIMEOUT'
   | 'STROOP_TOO_MANY_ERRORS'
   | 'TIMING_OFF_TARGET'
-  | 'SEARCH_TOO_MANY_ERRORS';
+  | 'SEARCH_TOO_MANY_ERRORS'
+  | 'HUMAN_CHECK_FAILED';
 
 /* ------------------------------------------------------------------------ */
 /* Result payload (dispatched with `capability-passed` / `capability-failed`) */
@@ -391,6 +472,8 @@ export interface AssessmentResult {
   /** PVT trials (empty when the PVT was not selected). */
   readonly trials: readonly PvtTrial[];
   readonly spatial: SpatialResult | null;
+  /** Outcome of the humanity check, or null when `human-check` is `off`. */
+  readonly humanity: HumanityReport | null;
   /**
    * Integrity-checked token encoding the outcome. Client-generated, so it is
    * tamper-evident but not unforgeable: backends must validate it against
@@ -459,6 +542,8 @@ export type Action =
   | { type: 'SEARCH_TAPPED'; index: number; tapTime: number }
   | { type: 'STAGE_TIMEOUT' }
   | { type: 'TIME_LIMIT_REACHED' }
+  /** Evidence about one observed input event, for the humanity check. */
+  | { type: 'RECORD_INPUT'; sample: InputSample }
   | {
       type: 'RESET_TEST';
       /** Optional replacement configuration for the next run. */
@@ -483,6 +568,8 @@ export interface MachineState {
   readonly planIndex: number;
   /** Results of the tests completed so far. */
   readonly results: readonly TestResult[];
+  /** Input evidence gathered so far, oldest first, bounded by `MAX_INPUT_SAMPLES`. */
+  readonly inputs: readonly InputSample[];
 }
 
 /** A timer the host should arm after entering the current stage. */

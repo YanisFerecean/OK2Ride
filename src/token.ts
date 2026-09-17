@@ -12,7 +12,8 @@
  */
 
 export interface TokenClaims {
-  readonly v: 1;
+  /** Claims version. Bumped to 2 by the humanity claims (`hv`, `hs`). */
+  readonly v: 2;
   /** Session id. */
   readonly sid: string;
   /** Host-supplied nonce, if any. */
@@ -33,6 +34,15 @@ export interface TokenClaims {
   readonly se: number | null;
   /** Comma-separated plan of tests presented. */
   readonly pl: string;
+  /**
+   * Humanity verdict, or null when the check was off. Spelled out rather than
+   * imported: this module stays dependency-free so it can ship as the
+   * server-side entry. The compiler still checks it against `HumanityVerdict`
+   * wherever a token is built.
+   */
+  readonly hv: 'human' | 'suspect' | 'automated' | null;
+  /** Humanity score, 0–1, or null when the check was off. */
+  readonly hs: number | null;
 }
 
 export const TOKEN_PREFIX = 'ok2r1';
@@ -97,8 +107,9 @@ function isTokenClaims(value: unknown): value is TokenClaims {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   const numOrNull = (x: unknown): boolean => x === null || typeof x === 'number';
+  const verdictOrNull = (x: unknown): boolean => x === null || x === 'human' || x === 'suspect' || x === 'automated';
   return (
-    v['v'] === 1 &&
+    v['v'] === 2 &&
     typeof v['sid'] === 'string' &&
     (v['nonce'] === null || typeof v['nonce'] === 'string') &&
     typeof v['ok'] === 'boolean' &&
@@ -108,6 +119,8 @@ function isTokenClaims(value: unknown): value is TokenClaims {
     typeof v['lp'] === 'number' &&
     typeof v['fs'] === 'number' &&
     numOrNull(v['se']) &&
-    typeof v['pl'] === 'string'
+    typeof v['pl'] === 'string' &&
+    verdictOrNull(v['hv']) &&
+    numOrNull(v['hs'])
   );
 }

@@ -46,7 +46,7 @@ const text = (selector: string): string => $(selector).textContent ?? '';
 const bikeIds = (): (string | undefined)[] => $$('.bike-card').map((c) => c.dataset['bike']);
 
 function tokenFor(nonce: string, ok: boolean, plan = 'pvt,stroop'): string {
-  return buildVerificationToken({ v: 1, sid: 'test', nonce, ok, iat: new Date(clock).toISOString(), ct: 20_000, rt: 298, lp: 0, fs: 0, se: null, pl: plan });
+  return buildVerificationToken({ v: 2, sid: 'test', nonce, ok, iat: new Date(clock).toISOString(), ct: 20_000, rt: 298, lp: 0, fs: 0, se: null, pl: plan, hv: 'human', hs: 1 });
 }
 
 /** Just the parts of a widget result the app reads. */

@@ -7,6 +7,7 @@ number trail, pattern memory, colour match, time sense, odd one out) and
 reports the outcome through DOM events.
 
 - Zero runtime dependencies; one ES module (`dist/ok2ride.js`).
+- Checks that the input came from a person, not a script (see [Humanity check](#humanity-check)).
 - Shadow DOM: styles and markup are fully encapsulated.
 - Deterministic finite state machine with millisecond timing via `performance.now()`.
 - Mobile-first, high-contrast UI for outdoor daylight and night-time use.
@@ -55,12 +56,14 @@ import type { AssessmentResult } from 'ok2ride';
 | `time-limit-ms`   | `timeLimitMs`    | `number` (5 000–600 000)          | `90000`    | Overall budget from the instruction acknowledgement.         |
 | `theme`           | `theme`          | `'dark' \| 'light'`               | `'dark'`   | Applied instantly.                                           |
 | `lang`            | `lang`           | BCP-47 tag (`en`, `de`)           | inherited  | UI language. Falls back to the document's `lang`, then English. Applies instantly, even mid-run. |
+| `human-check`     | `humanCheck`     | `'strict' \| 'lenient' \| 'off'`   | `'strict'` | How scripted or bot-like input is treated. See [Humanity check](#humanity-check).   |
 | `challenge-nonce` | `challengeNonce` | `string`                          | none       | Echoed in the result and bound into the verification token.  |
 
 Configuration is frozen while a run is in progress; new values apply on the
 next `reset()`.
 
-Read-only properties: `stage` (current FSM stage), `plan` (tests drawn), `config`, `result`, `active`.
+Read-only properties: `stage` (current FSM stage), `plan` (tests drawn), `config`, `result`,
+`active`, `humanity` (the humanity report so far, live during a run).
 Methods: `start()`, `reset()`.
 
 ### Events
@@ -75,8 +78,8 @@ All events bubble and are `composed`.
 
 `AssessmentResult` includes the `plan`, a per-test `results` array (one
 typed entry per test that ran), `failedTest`, `completionTimeMs`, `meanRtMs`
-across every reaction recorded, the PVT `trials`, the `SpatialResult`, and
-`verificationToken`.
+across every reaction recorded, the PVT `trials`, the `SpatialResult`, the
+`humanity` report, and `verificationToken`.
 
 ## Tests
 
@@ -111,9 +114,78 @@ lapse. Any invalid trial resets the streak. These thresholds never change.
 Every parameter is exposed on `AssessmentConfig` for hosts that replay or
 audit runs.
 
+## Humanity check
+
+Every input the widget acts on is also evidence about who produced it. The
+check runs alongside the tests and reports a `HumanityReport` on the result:
+
+```js
+captcha.addEventListener('capability-failed', (e) => {
+  if (e.detail.failureReason === 'HUMAN_CHECK_FAILED') {
+    console.warn(e.detail.humanity.signals); // why it was rejected
+  }
+});
+```
+
+```ts
+interface HumanityReport {
+  verdict: 'human' | 'suspect' | 'automated';
+  score: number;                  // 1 = nothing suggests automation, 0 = conclusively automated
+  signals: HumanitySignal[];      // evidence found, strongest first
+  sampleCount: number;
+  latencyCv: number | null;       // spread of the response latencies
+}
+```
+
+Evidence comes in two kinds.
+
+**Decisive.** `Event.isTrusted` is false for every event a script dispatched.
+The DOM specification guarantees it and page code cannot forge it, so one such
+event ends the run immediately with `failureReason: 'HUMAN_CHECK_FAILED'`.
+
+**Behavioural.** Each of these is only suggestive, so each carries a weight and
+none can fail a run on its own — two independent ones have to agree.
+
+| Signal               | Weight | Fires when                                                              |
+| -------------------- | ------ | ----------------------------------------------------------------------- |
+| `synthetic-event`    | 1.00   | An input event carried `isTrusted === false`. Decisive.                  |
+| `uniform-timing`     | 0.60   | ≥ 6 response latencies varying by less than 2 % — no hand is that steady. |
+| `fixed-pointer`      | 0.60   | ≥ 4 touch taps on different stages from one exact pixel.                 |
+| `automation-flag`    | 0.50   | The browser reports `navigator.webdriver`.                              |
+| `superhuman-latency` | 0.50   | More than one response under 60 ms, which beats nerve conduction.        |
+| `still-pointer`      | 0.35   | ≥ 3 mouse taps without the pointer ever moving.                          |
+
+The weights are summed: from 0.3 the verdict is `suspect`, from 0.8 it is
+`automated`. Only touch and pen coordinates are judged, because a mouse
+resting on a button repeats its coordinates exactly as a script would.
+
+| `human-check` | Ends the run on                                | Reports |
+| ------------- | ---------------------------------------------- | ------- |
+| `strict`      | scripted input, or an `automated` verdict       | always  |
+| `lenient`     | scripted input only                             | always  |
+| `off`         | nothing; no evidence is collected               | `null`  |
+
+The verdict and score are bound into the verification token (`hv`, `hs`), so a
+backend can weigh them even when the run was allowed to finish.
+
+**What this is and is not.** It runs in the browser it is judging, so it is
+evidence, not proof. It reliably rejects the cheap attack — dispatching events
+at the element — and makes the expensive one harder, but a driver-based bot
+that imitates human jitter will pass. Thresholds are set well outside what a
+hand can produce, so genuine riders are rarely accused; the price is that a
+careful bot is missed. Treat the report as one input to a server-side
+decision, next to the nonce, rate limits and your own fraud signals.
+
+**Automated tests.** An end-to-end suite is automation, and strict mode is
+meant to reject it. Run the widget with `human-check="lenient"` in CI (scripted
+input is still rejected, behaviour is only reported) or `"off"` to switch the
+check off entirely.
+
 ## Verification token
 
 `verificationToken` has the form `ok2r1.<base64url claims>.<fnv1a-64 checksum>`.
+The claims are at version `2`, which added `hv` (humanity verdict) and `hs`
+(humanity score); tokens from 0.1.x no longer decode.
 `decodeVerificationToken()` (exported) parses and checksum-validates it. The
 token is generated client-side, so it is tamper-evident but **not
 unforgeable**. A backend must validate the decoded claims (session id, nonce,
@@ -127,8 +199,10 @@ src/
   config.ts                    Defaults, difficulty presets, attribute validation
   stateMachine.ts              Run lifecycle reducer, plan selection, scoring, timerEffectFor()
   tasks/                       One module per test: start / reduce / timerEffect (pure, no DOM)
+  humanity.ts                  Scores the input evidence (pure, no DOM)
   token.ts                     Token encode / decode
   components/OK2Ride.ts  Custom element: attributes, shadow DOM, timers, events
+  components/input.ts          Collects input evidence from the shadow root
   components/screens/          One renderer per screen (build once, patch on every state change)
   components/styles.ts         Encapsulated CSS string
   index.ts                     Public exports + auto-registration
