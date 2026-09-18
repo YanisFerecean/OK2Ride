@@ -136,6 +136,32 @@ describe('<ok2ride-check>', () => {
     expect(query(el, '.stage-label').textContent).toBe('Test 1 of 2 · Reaction');
   });
 
+  it('keeps the intro mounted under a press, and builds a fresh one for the next test', () => {
+    const el = mount({ 'stage-pool': 'pvt,spatial' });
+    click(el, '[data-action="start"]');
+    click(el, '[data-action="ready"]');
+    const go = query(el, '[data-action="begin"]');
+
+    // A real press is sampled as evidence on `pointerdown`, before the click
+    // that follows it. Re-rendering there would detach the button mid-press
+    // and the browser would never dispatch its click.
+    go.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, isPrimary: true, button: 0 }));
+    expect(go.isConnected).toBe(true);
+    expect(query(el, '[data-action="begin"]')).toBe(go);
+
+    go.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    stage(el, 'PVT_AWAITING_STIMULUS');
+
+    pvtTrial(el, 240);
+    pvtTrial(el, 260);
+    pvtTrial(el, 280);
+
+    // The second intro shares the first one's screen, so it must be rebuilt.
+    stage(el, 'TEST_INTRO');
+    expect(query(el, 'h1').textContent).toBe('Steering');
+    expect(query(el, '[data-action="begin"]')).not.toBe(go);
+  });
+
   it('runs a two-test plan end to end and dispatches capability-passed', () => {
     const el = mount({ 'max-lapses': '2', 'stage-pool': 'pvt,spatial', 'challenge-nonce': 'n-1' });
     const stages: string[] = [];

@@ -106,6 +106,8 @@ export class OK2Ride extends HTMLElement {
   /** Identifies the current stage occurrence, and when it began, for input evidence. */
   #stageSeq = 0;
   #stageEnteredAt = 0;
+  /** Stage occurrence the mounted screen was built for. */
+  #screenSeq = -1;
 
   constructor() {
     super();
@@ -415,13 +417,18 @@ export class OK2Ride extends HTMLElement {
     const state = this.#state;
     setText(this.#stageLabel, stageLabel(state, this.#strings));
     const key = SCREEN_FOR_STAGE[state.stage.type];
-    // Consecutive intros (one per test) must remount even though the key repeats.
-    const remount = key !== this.#screenKey || key === 'intro';
+    // Consecutive intros (one per test) must remount even though the key
+    // repeats, so they are told apart by the stage counter. Remounting on
+    // every render instead would pull the screen out from under a press:
+    // input evidence re-renders, and a button removed between `pointerdown`
+    // and `pointerup` never receives a click.
+    const remount = key !== this.#screenKey || (key === 'intro' && this.#stageSeq !== this.#screenSeq);
     if (remount) {
       this.#unmountScreen();
       const screen = SCREEN_FACTORIES[key](this.#ctx, state);
       this.#screen = screen;
       this.#screenKey = key;
+      this.#screenSeq = this.#stageSeq;
       this.#screenHost.replaceChildren(...screen.nodes);
       screen.focus?.();
     }
